@@ -219,8 +219,11 @@
             <div class="buddy-stat-row">特: 実<input type="number" class="b-sp-v" value="336" oninput="updateBuddyList()">+B<input type="number" class="b-sp-b" value="0" oninput="updateBuddyList()">+チ<input type="number" class="b-sp-t" value="0" oninput="updateBuddyList()">+装<input type="number" class="b-sp-e" value="0" oninput="updateBuddyList()"></div>
             <div style="margin-top:5px; border-top:1px solid #ccc; padding-top:5px;">スキル装備倍率合計値：</div>
             <div style="display:flex; justify-content:space-between;">技威力:<input type="number" class="b-skill-p" value="0" style="width:35px" oninput="allCalculate()">% B技威力:<input type="number" class="b-skill-b" value="0" style="width:35px" oninput="allCalculate()">%</div>
-        document.querySelector(`#buddy-card-${n} .form-list`).appendChild(div);
-        updateBuddyList();
+        const target = document.querySelector(`#buddy-card-${n} .form-list`);
+        if (target) {
+            target.appendChild(div);
+            updateBuddyList();
+        }
     }
 
     function updateBuddyList() {
