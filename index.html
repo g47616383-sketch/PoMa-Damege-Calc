@@ -188,8 +188,8 @@
                 <div class="buddy-card" id="buddy-card-${i}">
                     <div class="buddy-main">
                         <input type="text" class="b-name" value="バディーズ${i}" style="width:100%" oninput="updateBuddyList()">
-                        <div class="buddy-stat-row">攻撃: 実数値<input type="number" class="b-atk-v" value="336" oninput="updateBuddyList()">+BSB<input type="number" class="b-atk-b" value="0" oninput="updateBuddyList()">+チームスキル<input type="number" class="b-atk-t" value="0" oninput="updateBuddyList()">+装備<input type="number" class="b-atk-e" value="0" oninput="updateBuddyList()"></div>
-                        <div class="buddy-stat-row">特攻: 実数値<input type="number" class="b-sp-v" value="336" oninput="updateBuddyList()">+BSB<input type="number" class="b-sp-b" value="0" oninput="updateBuddyList()">+チームスキル<input type="number" class="b-sp-t" value="0" oninput="updateBuddyList()">+装備<input type="number" class="b-sp-e" value="0" oninput="updateBuddyList()"></div>
+                        <div class="buddy-stat-row">攻撃: <input type="number" class="b-atk-v" value="336" oninput="updateBuddyList()">+BSB<input type="number" class="b-atk-b" value="0" oninput="updateBuddyList()">+チームスキル<input type="number" class="b-atk-t" value="0" oninput="updateBuddyList()">+装備<input type="number" class="b-atk-e" value="0" oninput="updateBuddyList()"></div>
+                        <div class="buddy-stat-row">特攻: <input type="number" class="b-sp-v" value="336" oninput="updateBuddyList()">+BSB<input type="number" class="b-sp-b" value="0" oninput="updateBuddyList()">+チームスキル<input type="number" class="b-sp-t" value="0" oninput="updateBuddyList()">+装備<input type="number" class="b-sp-e" value="0" oninput="updateBuddyList()"></div>
                         <div style="margin-top:5px; border-top:1px solid #ccc; padding-top:5px;">スキル装備倍率合計値：</div>
                         <div style="display:flex; justify-content:space-between;">技威力:<input type="number" class="b-skill-p" value="0" style="width:35px" oninput="allCalculate()">% B技威力:<input type="number" class="b-skill-b" value="0" style="width:35px" oninput="allCalculate()">%</div>
                     </div>
@@ -385,7 +385,7 @@
         let html = '';
         if(optType === 'WTZ') html = `WTZ: <select onchange="allCalculate()"><option value="1.5">WTZ</option><option value="3.0">EXWTZ</option></select>`;
         if(optType === 'Circle') html = `サークル: <select class="c-loc" onchange="allCalculate()">${regions.map(v=>`<option value="${v}">${v}</option>`)}</select> <select class="c-n" onchange="allCalculate()">${[1,2,3].map(v=>`<option value="${v}">${v}</option>`)}</select>人 <select class="c-type" onchange="allCalculate()"><option value="物理">物理</option><option value="特殊">特殊</option><option value="防御">防御</option></select>`;
-        if(optType === 'Resist') html = `抵抗: <select class="r-val" onchange="allCalculate()">${['0.625','0.666','0.769','1.3','1.5','1.6'].map((v,i)=>`<option value="${v}">${['+3','+2','+1','-1','-2','-3'][i]}</option>`)}</select>`;
+        if(optType === 'Resist') html = `抵抗: <select class="r-val" onchange="allCalculate()">${['0.625','0.666','0.769','1.3','1.5','1.6'].map((v,i)=>`<option value="${v}" ${v === '1.3' ? 'selected' : ''}>${['+3','+2','+1','-1','-2','-3'][i]}</option>`)}</select>`;
         if(optType === 'SuperEff') html = `次回抜群 <input type="checkbox" checked onchange="allCalculate()">`;
         if(optType === 'ReduceStat') html = `軽減状態 <input type="checkbox" checked onchange="allCalculate()">`;
         if(optType === 'NextGuard') html = `ダメ防御 左:<input type="checkbox" class="ng-l" checked onchange="allCalculate()"> 中:<input type="checkbox" class="ng-c" checked onchange="allCalculate()"> 右:<input type="checkbox" class="ng-r" checked onchange="allCalculate()">`;
