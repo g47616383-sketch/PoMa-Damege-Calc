@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ポケマス風 ダメージ計算機 Pro+ v4.5</title>
+    <title>ポケマスダメージ計算機 v4.7</title>
     <style>
         body { font-family: "Helvetica Neue", Arial, sans-serif; background-color: #f0f2f5; padding: 15px; font-size: 11px; color: #333; }
         .container { max-width: 1750px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
@@ -105,6 +105,7 @@
     <div class="guide-section">
         <h2>使い方・ヒント</h2>
         <p>ポケモンマスターズEXのダメージ計算ツールです。</p>
+        <p>ダメージ計算結果は最高乱数値です。ここに乱数（0.9~1.0間を0.01刻みの11段階）を掛けた値が実際に与えられるダメージです。</p>
 
         <h3>敵ステータス設定</h3>
         <div class="guide-item">
@@ -114,40 +115,40 @@
 
         <h3>味方バディーズ設定</h3>
         <div class="guide-item">
-            * <b>バディーズ名：</b> 自分が分かれば何でもいいです。<br>
-            * <b>姿追加：</b> メガシンカ、フォルムチェンジなど、戦闘途中で攻撃・特攻の数値が変化する場合は、「+姿追加」を押して名前と実数値を設定し直してください。<br>
-            * <b>攻撃・特攻：</b> 攻撃・特攻の一番左の欄には、ゲーム内バディーズ詳細画面の実数値を入力してください。BSBの青パネルの補正値、チームパワーの補正値、装備の補正値を入力してください。
+            * <b>バディーズ名：</b> 書き方は自由です。分かれば何でもいいです。<br>
+            * <b>姿追加：</b> メガシンカ、フォルムチェンジなど、戦闘途中で攻撃・特攻の数値が変化する場合は、「+姿追加」を押して名前と数値を追記してください。<br>
+            * <b>攻撃・特攻：</b> 攻撃・特攻の一番左の欄には、ゲーム内バディーズ詳細画面の実数値を入力してください。必要ならば、BSBの青パネルの補正値、チームパワーの補正値、装備の補正値を入力してください。
         </div>
 
         <h3>全体共通設定</h3>
         <div class="guide-item">
-            マスターパッシブなど、戦闘中常に効果が発揮されるスキルを、各行動の詳細で書かなくても済むように設置してある欄です。マスターパッシブ、マスターEXパッシブ、神話（アルコスパッシブ）、カリスマ（BP星5マスターパッシブ）などを入力してください。※同名パッシブは重複発動しないので、重複入力しないでください。
+            マスターパッシブなど、戦闘中常に効果が発揮されるスキルを、各行動の詳細で何度も書かずに済むように設置してある欄です。マスターパッシブ、マスターEXパッシブ、神話（アルコスパッシブ）、カリスマ（BP星5マスターパッシブ）などを入力してください。※同名パッシブは重複発動しないので、重複入力しないでください。
         </div>
 
         <h3>行動詳細</h3>
         <div class="guide-item">
             <strong>【一段目】</strong><br>
             * <b>移動/複製：</b> 行動順を変更できます。コピペボタンを押すと、最下行に同じ行動がコピペされます。<br>
-            * <b>バディーズ：</b> バディーズ名を選択してください。攻撃・特攻実数値を設定しているようなものです。<br>
+            * <b>バディーズ：</b> バディーズ名を選択してください。ここで指定されたバディーズの攻撃・特攻数値が計算に使用されます。<br>
             * <b>技名/分類：</b> 技名は自由入力です。通常技/B技/BD技は下のラジオボタンで指定してください。<br>
             * <b>威力/BSB：</b> 威力欄にはゲーム内の技長押しで表示される数値を、BSB欄には取得した緑・紫・桃色パネルの合計を入力してください。<br>
-            * <b>技倍率：</b> 技の説明欄の倍率条件（アシストパワー、B技の内蔵威力上昇など）を記入してください。<br>
-            * <b>ターゲット：</b> 複数チェックで「威力分散なし」オプションが出現します。アタッカーEX効果や全体化パッシブを持つ場合にチェックしてください。<br>
-            * <b>ブースト：</b> 技名が『B技』なら1段階10%、『BD技』なら0％、それ以外は40%で計算されます。<br>
-            * <b>上昇スキル：</b> パッシブ、BSB、ポテンシャルの威力上昇（威力上昇nなら10n%）を入力してください。※テクニカルEXの1.5倍などは含めないでください。
+            * <b>技倍率：</b> 「技の説明欄」に載っている倍率条件（アシストパワーやジャイロボール、B技の内蔵威力上昇、一部のS技など）を記入してください。<br>
+            * <b>ターゲット：</b> 「威力分散なし」を選択すると、全体技威力分散の2/3倍や1/2倍が1倍に変更されます。アタッカーEX効果や全体化パッシブを持つ場合にチェックしてください。<br>
+            * <b>ブースト：</b> 一段階につき、通常技なら40%、B技なら10%、BD技なら0%で計算されます。<br>
+            * <b>上昇スキル：</b> パッシブ、BSB、ポテンシャルの威力上昇（威力上昇nなら10n%）を入力してください。※テクニカルEXの1.5倍やゲージ消費増威力上昇nは技威力に反映済みなため、ここには書かないでください。
         </div>
 
         <div class="guide-item">
             <strong>【二段目（オプション）】</strong><br>
             * <b>WTZ：</b> 天気・フィールド・ゾーン。WTZで1.5倍、EXWTZで3倍です。<br>
             * <b>サークル：</b> 同時展開時はそれぞれ積算されます。展開している数だけ追加してください。<br>
-            * <b>タイプ抵抗：</b> 敵の抵抗値（大抵はマイナス）を選択。ノーマルとステラは重複するため、2回追加可能です。<br>
+            * <b>タイプ抵抗：</b> 敵の抵抗値（大抵はマイナス）を選択。ノーマルとステラは重複するため、2回追加してください。<br>
             * <b>次回抜群：</b> 「次回抜群威力上昇状態」の時に選択。抜群チェックの敵へのダメージが1.5倍になります。<br>
             * <b>物理/特殊軽減：</b> 壁が張られている時かつ非急所想定の時に使用します。<br>
             * <b>次回ダメ防御：</b> 敵の状態。通常技はダメージ0、B技BD技は1/2倍になります。<br>
-            * <b>軽減スキル：</b> タイプガード等。相手のパッシブ数だけ追加してください（0.7倍ずつ積算）。<br>
-            * <b>火傷：</b> 自身が火傷時、物理技が0.8倍されます。<br>
-            * <b>その他：</b> 未実装の倍率を任意に設定して積算できます。
+            * <b>軽減スキル：</b> タイプガードを想定しています。相手のパッシブ数だけ追加してください（0.7倍ずつ積算）。<br>
+            * <b>火傷：</b> 自身が火傷時に選択。物理技が0.8倍されます。<br>
+            * <b>その他：</b> 未実装の要素等を任意に設定して積算できます。
         </div>
 
         <div class="guide-footer">
@@ -212,12 +213,34 @@
 
     function addBuddyForm(n) {
         const div = document.createElement('div');
+        const card = document.querySelector(`#buddy-card-${n}`);
+        const formList = card.querySelector(`.form-list`);
+        const last = formList.querySelector('.buddy-main:last-child') || card.querySelector(':scope > .buddy-main');
+        const vals = last ? {
+            atkV: last.querySelector('.b-atk-v').value,
+            atkB: last.querySelector('.b-atk-b').value,
+            atkT: last.querySelector('.b-atk-t').value,
+            atkE: last.querySelector('.b-atk-e').value,
+
+            spV: last.querySelector('.b-sp-v').value,
+            spB: last.querySelector('.b-sp-b').value,
+            spT: last.querySelector('.b-sp-t').value,
+            spE: last.querySelector('.b-sp-e').value,
+
+            skP: last.querySelector('.b-skill-p').value,
+            skB: last.querySelector('.b-skill-b').value
+        } : {
+            atkV:336, atkB:0, atkT:0, atkE:0,
+            spV:336, spB:0, spT:0, spE:0,
+            skP:0, skB:0
+        };
         div.className = 'buddy-main';
         div.innerHTML = `
             <div style="display:flex;"><input type="text" class="b-name" placeholder="姿名" oninput="updateBuddyList()" style="width:80%"><button onclick="this.parentElement.parentElement.remove(); updateBuddyList();" style="border:none;background:none;cursor:pointer;">×</button></div>
-            <div class="buddy-stat-row">攻: 実<input type="number" class="b-atk-v" value="336" oninput="updateBuddyList()">+B<input type="number" class="b-atk-b" value="0" oninput="updateBuddyList()">+チ<input type="number" class="b-atk-t" value="0" oninput="updateBuddyList()">+装<input type="number" class="b-atk-e" value="0" oninput="updateBuddyList()"></div>
-            <div class="buddy-stat-row">特: 実<input type="number" class="b-sp-v" value="336" oninput="updateBuddyList()">+B<input type="number" class="b-sp-b" value="0" oninput="updateBuddyList()">+チ<input type="number" class="b-sp-t" value="0" oninput="updateBuddyList()">+装<input type="number" class="b-sp-e" value="0" oninput="updateBuddyList()"></div>
-            <div style="display:flex; justify-content:space-between; margin-top:5px;">技威力:<input type="number" class="b-skill-p" value="0" style="width:35px" oninput="allCalculate()">% B技威力:<input type="number" class="b-skill-b" value="0" style="width:35px" oninput="allCalculate()">%</div>`;
+            <div class="buddy-stat-row">攻撃: <input type="number" class="b-atk-v" value="${vals.atkV}" oninput="updateBuddyList()">+BSB<input type="number" class="b-atk-b" value="${vals.atkB}" oninput="updateBuddyList()">+チームスキル<input type="number" class="b-atk-t" value="${vals.atkT}" oninput="updateBuddyList()">+装備<input type="number" class="b-atk-e" value="${vals.atkE}" oninput="updateBuddyList()"></div>
+            <div class="buddy-stat-row">特攻: <input type="number" class="b-sp-v" value="${vals.spV}" oninput="updateBuddyList()">+BSB<input type="number" class="b-sp-b" value="${vals.spB}" oninput="updateBuddyList()">+チームスキル<input type="number" class="b-sp-t" value="${vals.spT}" oninput="updateBuddyList()">+装備<input type="number" class="b-sp-e" value="${vals.spE}" oninput="updateBuddyList()"></div>
+            <div style="margin-top:5px; border-top:1px solid #ccc; padding-top:5px;">スキル装備倍率合計値：</div>
+            <div style="display:flex; justify-content:space-between; margin-top:5px;">技威力:<input type="number" class="b-skill-p" value="${vals.skP}" style="width:35px" oninput="updateBuddyList()">% B技威力:<input type="number" class="b-skill-b" value="${vals.skB}" style="width:35px" oninput="updateBuddyList()">%</div>`;
         document.querySelector(`#buddy-card-${n} .form-list`).appendChild(div);
         updateBuddyList();
     }
@@ -362,12 +385,13 @@
                 <div class="col-delete"><button class="btn-del-row" onclick="document.getElementById('${rowId}').remove(); allCalculate();">×</button></div>
             </div>
             <div class="row-lower">
-                <select class="opt-select"><option value="WTZ">WTZ</option><option value="Circle">サークル</option><option value="Resist">タイプ抵抗</option><option value="SuperEff">次回抜群</option><option value="ReduceStat">物理/特殊軽減</option><option value="NextGuard">次回ダメ防御</option><option value="ReduceSkill">軽減スキル</option><option value="Burn">火傷</option><option value="Other">その他</option></select>
+                <select class="opt-select"><option value="WTZ">WTZ</option><option value="Circle">サークル</option><option value="Resist">タイプ抵抗</option><option value="Break">ブレイク状態</option><option value="SuperEff">次回抜群</option><option value="ReduceStat">物理/特殊軽減</option><option value="NextGuard">次回ダメ防御</option><option value="ReduceSkill">軽減スキル</option><option value="Burn">火傷</option><option value="Other">その他</option><option value="Comment">コメント</option></select>
                 <button class="btn-add" style="background:#3498db; color:white; border:none; border-radius:3px; cursor:pointer;" onclick="addOption('${rowId}')">追加</button>
                 <div class="opt-box permanent">急所 左:<input type="checkbox" class="crit-l" checked onchange="allCalculate()"> 中:<input type="checkbox" class="crit-c" checked onchange="allCalculate()"> 右:<input type="checkbox" class="crit-r" checked onchange="allCalculate()"></div>
                 <div class="opt-box permanent">ボルテージ <input type="number" class="volt-val" value="0" style="width:35px" oninput="allCalculate()"></div>
-                <div class="dynamic-opts" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+                <div class="dynamic-opts" style="display:flex; flex-wrap:wrap; gap:8px;"></div><br>
             </div>
+            <div class="comment-row"></div>
         `;
         document.getElementById('action-list').appendChild(div);
         updateBuddyList();
@@ -386,12 +410,41 @@
         if(optType === 'WTZ') html = `WTZ: <select onchange="allCalculate()"><option value="1.5">WTZ</option><option value="3.0">EXWTZ</option></select>`;
         if(optType === 'Circle') html = `サークル: <select class="c-loc" onchange="allCalculate()">${regions.map(v=>`<option value="${v}">${v}</option>`)}</select> <select class="c-n" onchange="allCalculate()">${[1,2,3].map(v=>`<option value="${v}">${v}</option>`)}</select>人 <select class="c-type" onchange="allCalculate()"><option value="物理">物理</option><option value="特殊">特殊</option><option value="防御">防御</option></select>`;
         if(optType === 'Resist') html = `抵抗: <select class="r-val" onchange="allCalculate()">${['0.625','0.666','0.769','1.3','1.5','1.6'].map((v,i)=>`<option value="${v}" ${v === '1.3' ? 'selected' : ''}>${['+3','+2','+1','-1','-2','-3'][i]}</option>`)}</select>`;
+        if(optType === 'Break') html = `ブレイク状態 左:<input type="checkbox" class="br-l" checked onchange="allCalculate()"> 中:<input type="checkbox" class="br-c" checked onchange="allCalculate()"> 右:<input type="checkbox" class="br-r" checked onchange="allCalculate()">`;
         if(optType === 'SuperEff') html = `次回抜群 <input type="checkbox" checked onchange="allCalculate()">`;
         if(optType === 'ReduceStat') html = `軽減状態 <input type="checkbox" checked onchange="allCalculate()">`;
         if(optType === 'NextGuard') html = `ダメ防御 左:<input type="checkbox" class="ng-l" checked onchange="allCalculate()"> 中:<input type="checkbox" class="ng-c" checked onchange="allCalculate()"> 右:<input type="checkbox" class="ng-r" checked onchange="allCalculate()">`;
         if(optType === 'ReduceSkill') html = `軽減スキル <select onchange="allCalculate()"><option value="0.7">0.7倍</option></select>`;
         if(optType === 'Burn') html = `火傷 <input type="checkbox" checked onchange="allCalculate()">`;
-        if(optType === 'Other') html = `その他: <input type="number" class="other-val" value="1.0" step="0.1" style="width:40px" oninput="allCalculate()">倍`;
+        if(optType === 'Other') html = `その他 左:<input type="number" class="ot-l" value="1.0" step="0.1" style="width:40px" oninput="allCalculate()">倍 中:<input type="number" class="ot-c" value="1.0" step="0.1" style="width:40px" oninput="allCalculate()">倍 右:<input type="number" class="ot-r" value="1.0" step="0.1" style="width:40px" oninput="allCalculate()">倍`;
+        if(optType === 'Comment') {const commentRow = row.querySelector('.comment-row');
+            // 既に存在するなら追加しない
+            if(commentRow.querySelector('.comment-text'))
+                return;
+            commentRow.innerHTML = `
+                <input
+                    type="text"
+                    class="comment-text"
+                    placeholder="コメント"
+                    style="
+                        width:100%;
+                        margin-top:5px;
+                        box-sizing:border-box;
+                    "
+                >
+                <span
+                    style="
+                        cursor:pointer;
+                        margin-left:5px;
+                    "
+                    onclick="
+                        this.closest('.comment-row').innerHTML='';
+                    "
+                >×</span>
+            `;
+
+            return;
+        }
 
         box.innerHTML = `${html} <span class="opt-del" onclick="this.parentElement.remove(); allCalculate();">×</span>`;
         container.appendChild(box);
@@ -479,7 +532,6 @@
                 if(type==='ReduceStat' && box.querySelector('input').checked) reduceStatActive = true;
                 if(type==='ReduceSkill') reduceSkillMulti *= 0.7;
                 if(type==='Burn' && box.querySelector('input').checked && mCat==='physical') burnActive = 0.8;
-                if(type==='Other') otherMulti *= Number(box.querySelector('.other-val').value);
                 if(type==='Circle' && !isBD) {
                     const ct = box.querySelector('.c-type').value, cn = Number(box.querySelector('.c-n').value);
                     if(ct==='防御') circleMulti *= (21+cn)/20;
@@ -511,6 +563,15 @@
                 // 物理・特殊軽減（急所時は無視）
                 if(reduceStatActive && !isCrit) sideMulti *= (2/3);
 
+                // ブレイク状態
+                const breakBox =
+                    Array.from(
+                        row.querySelectorAll('.dynamic-opts .opt-box')
+                    ).find(b => b.dataset.type === 'Break');
+                if(breakBox && breakBox.querySelector(`.br-${c}`)?.checked) {
+                    sideMulti *= 1.5;
+                }
+
                 // 次回抜群（弱点時のみ）
                 if(superEffActive && row.querySelector(`.w-${c}`).checked) sideMulti *= 1.5;
 
@@ -519,6 +580,12 @@
                 if(ngBox && ngBox.querySelector(`.ng-${c}`).checked) {
                     sideMulti *= (isB || isBD ? 0.5 : 0);
                 }
+
+                // その他
+                const otherInput = row.querySelector(`.ot-${c}`);
+                const other = otherInput && otherInput.value !== ''? Number(otherInput.value) : 1;
+                sideMulti *= other;
+
 
                 const eDef = Number(document.getElementById(`${row.querySelector('.en-stat-type').value}-${s}`).value);
                 const eRes = Number(document.getElementById(`res-${row.querySelector('.en-stat-type').value}-${s}`).value);
@@ -635,6 +702,17 @@
         const tNoSplit = target.querySelector('.no-split-chk');
 
         if(oNoSplit && tNoSplit) {tNoSplit.checked = oNoSplit.checked;}
+
+        const oComment =
+            original.querySelector('.comment-text');
+
+        if(oComment) {
+
+            addOption(target.id, 'Comment');
+
+            target.querySelector('.comment-text').value =
+                oComment.value;
+        }
         
         allCalculate();
     }
