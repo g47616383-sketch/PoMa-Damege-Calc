@@ -11,8 +11,8 @@
         
         .enemy-settings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: #ffebee; padding: 15px; border-radius: 8px; border: 1px solid #ef9a9a; }
         .enemy-card { background: rgba(255,255,255,0.5); padding: 8px; border-radius: 6px; }
-        .team-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px; }
-        .buddy-card { background: #e3f2fd; padding: 10px; border-radius: 8px; border: 1px solid #bbdefb; }
+        .team-settings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: #e3f2fd; padding: 15px; border-radius: 8px; border: 1px solid #90caf9; }
+        .buddy-card { background: rgba(255,255,255,0.5); padding: 10px; border-radius: 6px; }
         .buddy-main { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed #90caf9; }
         .buddy-stat-row { display: flex; align-items: center; gap: 5px; margin-top: 5px; }
         .buddy-stat-row input { width: 45px; }
@@ -58,8 +58,13 @@
         .ea-dmgtype { display: flex; flex-direction: column; gap: 2px; background: #fdf2f2; border-radius: 8px; padding: 4px 8px; border: 1px solid #f5c6cb; font-size: 10px; }
         .ea-hp-row { display: grid; grid-template-columns: 20px 1fr; gap: 4px; align-items: center; font-size: 11px; margin-bottom:2px; }
 
-        .total-summary { margin-top: 20px; padding: 20px; background: #2c3e50; color: white; border-radius: 8px; display: flex; justify-content: space-around; }
+        .total-summary { margin-top: 20px; padding: 20px; background: #2c3e50; color: white; border-radius: 8px; display: flex; justify-content: space-around; gap: 15px; }
+        .total-col { flex: 1; text-align: center; }
         .total-val { font-size: 1.6em; color: #2ecc71; font-weight: bold; }
+        .total-ratio { font-size: 0.95em; color: #bdc3c7; margin-top: 4px; }
+        .hp-bar-wrap { margin-top: 8px; height: 14px; border-radius: 7px; overflow: hidden; background: rgb(239,66,60); position: relative; }
+        .hp-bar-remain { height: 100%; transition: width 0.2s; }
+        .hp-bar-label { font-size: 0.75em; color: #ecf0f1; margin-top: 3px; }
 
         .guide-section { margin-top: 40px; padding: 20px; background: #fafafa; border: 1px solid #eee; border-radius: 8px; line-height: 1.6; }
         .guide-footer { margin-top: 20px; font-weight: bold; color: #e74c3c; border-top: 1px dashed #ccc; padding-top: 10px; }
@@ -72,7 +77,7 @@
     <div class="enemy-settings" id="enemy-root"></div>
 
     <div class="section-title">味方バディーズ設定</div>
-    <div class="team-grid" id="team-root"></div>
+    <div class="team-settings" id="team-root"></div>
 
     <div class="common-buffs">
         <div style="display: flex; align-items: center; gap: 20px;">
@@ -106,9 +111,24 @@
     </div>
 
     <div class="total-summary">
-        <div>左 合計: <span id="total-left" class="total-val">0</span></div>
-        <div>中央 合計: <span id="total-center" class="total-val">0</span></div>
-        <div>右 合計: <span id="total-right" class="total-val">0</span></div>
+        <div class="total-col">
+            <div>左 合計ダメージ: <span id="total-left" class="total-val">0</span></div>
+            <div class="total-ratio">ダメージ割合: <span id="dmgratio-left">-</span></div>
+            <div class="hp-bar-wrap"><div class="hp-bar-remain" id="hpbar-left" style="width:100%; background:rgb(156,228,26);"></div></div>
+            <div class="hp-bar-label">残りHP: <span id="hpremain-left">-</span></div>
+        </div>
+        <div class="total-col">
+            <div>中央 合計ダメージ: <span id="total-center" class="total-val">0</span></div>
+            <div class="total-ratio">ダメージ割合: <span id="dmgratio-center">-</span></div>
+            <div class="hp-bar-wrap"><div class="hp-bar-remain" id="hpbar-center" style="width:100%; background:rgb(156,228,26);"></div></div>
+            <div class="hp-bar-label">残りHP: <span id="hpremain-center">-</span></div>
+        </div>
+        <div class="total-col">
+            <div>右 合計ダメージ: <span id="total-right" class="total-val">0</span></div>
+            <div class="total-ratio">ダメージ割合: <span id="dmgratio-right">-</span></div>
+            <div class="hp-bar-wrap"><div class="hp-bar-remain" id="hpbar-right" style="width:100%; background:rgb(156,228,26);"></div></div>
+            <div class="hp-bar-label">残りHP: <span id="hpremain-right">-</span></div>
+        </div>
     </div>
 
 <!-- 使い方・ヒント セクション -->
@@ -174,7 +194,7 @@
             * <b>やけど：</b> 最大HPの1/8が基本ダメージです。<br>
             * <b>天候：</b> 最大HPの1/32が基本ダメージです。耐性・ダメージ増加パッシブはありません。<br>
             * <b>ダメージの場：</b> 最大HPの1/16が基本ダメージです。弱点なら2倍、タイプ抵抗（-3~+3）の影響も受けます。ダメージ増加パッシブはありません。<br>
-            * <b>耐性n：</b> 受けるダメージを(1-0.1×n)倍します。ただし耐性10のときだけ、0.95倍になります。<br>
+            * <b>耐性n：</b> 受けるダメージを(1-0.1×n)倍します。ただし耐性10のときだけ、0.05倍になります。<br>
             * <b>ダメージ増加n：</b> 敵に与えるダメージを(1+0.1×n)倍します（バインド・どく・もうどく・やけど）。<br>
             * <b>BC（B技カウント）：</b> 「行動前→行動後」の数値として表示されます。デフォルトでは行動前6・行動後5から始まり、敵行動1回ごとに1ずつ減っていき、行動前0の行動後は6に戻ります。
         </div>
@@ -200,25 +220,29 @@
         sides.forEach(s => {
             eRoot.innerHTML += `
                 <div class="enemy-card">
-                    <div style="text-align:center; font-weight:bold; margin-bottom:5px;">${s==='Center'?'中央':s==='Left'?'左':'右'}</div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                        <span style="font-weight:bold;">${s==='Center'?'中央':s==='Left'?'左':'右'}</span>
+                        <select style="width:55%" onchange="applyPreset('${s}', this.value)">
+                            <option value="">プリセット</option><option value="gymex5">ジムバトルEX5~</option><option value="200">究極(166)</option><option value="166">レジェバト(?)</option><option value="500">チャンバト(?)</option>
+                        </select>
+                    </div>
+                    <div style="border-top:1px solid #ddd; padding-top:5px; display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
                         防御: <input type="number" id="def-${s}" value="200" oninput="allCalculate()"> ダウン耐性: <select id="res-def-${s}" onchange="allCalculate()">${[0,1,2,3,4,5,6,7,8,9,10].map(v=>`<option value="${v}">${v}</option>`)}</select>
                     </div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                    <div style="border-top:1px solid #ddd; padding-top:5px; display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
                         特防: <input type="number" id="spdef-${s}" value="200" oninput="allCalculate()"> ダウン耐性: <select id="res-spdef-${s}" onchange="allCalculate()">${[0,1,2,3,4,5,6,7,8,9,10].map(v=>`<option value="${v}">${v}</option>`)}</select>
                     </div>
-                    <select style="width:100%" onchange="applyPreset('${s}', this.value)">
-                        <option value="">プリセット</option><option value="gymex5">ジムバトルEX5~</option><option value="200">究極(166)</option><option value="166">レジェバト(?)</option><option value="500">チャンバト(?)</option>
-                    </select>
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px;">
+                    <div style="border-top:1px solid #ddd; padding-top:5px; display:flex; justify-content:space-between; align-items:center;">
                         最大HP: <input type="number" id="maxhp-${s}" placeholder="任意" style="width:100px" oninput="allCalculate()">
                     </div>
-                    <div style="font-size:10px; color:#999; margin-top:4px;">耐性(状態異常等)初期値</div>
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:2px; font-size:10px;">
-                        <div>バインド<input type="number" id="resist-bind-${s}" min="0" max="10" value="0" style="width:35px" onchange="syncEaResistDefaults('${s}')"></div>
-                        <div>どく<input type="number" id="resist-poison-${s}" min="0" max="10" value="0" style="width:35px" onchange="syncEaResistDefaults('${s}')"></div>
-                        <div>やけど<input type="number" id="resist-burn-${s}" min="0" max="10" value="0" style="width:35px" onchange="syncEaResistDefaults('${s}')"></div>
-                        <div>ダメ場<input type="number" id="resist-zone-${s}" min="0" max="10" value="0" style="width:35px" onchange="syncEaResistDefaults('${s}')"></div>
+                    <div style="border-top:1px solid #ddd; padding-top:5px; margin-top:5px;">
+                        <div style="font-size:10px; color:#999; margin-bottom:2px;">耐性(状態異常等)初期値</div>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:2px; font-size:10px;">
+                            <div>バインド<input type="number" id="resist-bind-${s}" min="0" max="10" value="0" style="width:35px" onchange="syncEaResistDefaults('${s}')"></div>
+                            <div>どく<input type="number" id="resist-poison-${s}" min="0" max="10" value="0" style="width:35px" onchange="syncEaResistDefaults('${s}')"></div>
+                            <div>やけど<input type="number" id="resist-burn-${s}" min="0" max="10" value="0" style="width:35px" onchange="syncEaResistDefaults('${s}')"></div>
+                            <div>ダメ場<input type="number" id="resist-zone-${s}" min="0" max="10" value="0" style="width:35px" onchange="syncEaResistDefaults('${s}')"></div>
+                        </div>
                     </div>
                 </div>`;
         });
@@ -478,7 +502,7 @@
         div.innerHTML = `
             <div class="ea-upper">
                 <div style="display:flex; flex-wrap:wrap; gap:10px; flex:1; min-width:0;">
-                    <div class="col-op">
+                    <div class="col-op" style="width:94px;">
                         <div style="display:flex; gap:2px; margin-bottom:3px;">
                             <button class="btn-op-v" onclick="moveRow('${rowId}','top')">最上</button><button class="btn-op-v" onclick="moveRow('${rowId}','up')">上</button>
                             <button class="btn-op-v" onclick="moveRow('${rowId}','down')">下</button><button class="btn-op-v" onclick="moveRow('${rowId}','bottom')">最下</button>
@@ -1017,11 +1041,37 @@
             });
             renderFormula(row, formulaCtx);
         });
-        const enemyTotals = calcAllEnemyActions();
+        const enemyResult = calcAllEnemyActions();
+        const enemyTotals = enemyResult.totals;
+        const enemyMaxhp = enemyResult.maxhp;
         const sideKeyMap = {Left:'l', Center:'c', Right:'r'};
         sides.forEach(s => {
-            const combined = totals[s] + (enemyTotals[sideKeyMap[s]] || 0);
+            const c = sideKeyMap[s];
+            const combined = totals[s] + (enemyTotals[c] || 0);
             document.getElementById(`total-${s.toLowerCase()}`).innerText = combined.toLocaleString();
+
+            const mhp = enemyMaxhp[c] || 0;
+            const sLower = s.toLowerCase();
+            const ratioEl = document.getElementById(`dmgratio-${sLower}`);
+            const remainEl = document.getElementById(`hpremain-${sLower}`);
+            const barEl = document.getElementById(`hpbar-${sLower}`);
+            if(mhp > 0) {
+                const dmgRatio = combined / mhp;
+                const remainRatio = Math.max(0, 1 - dmgRatio);
+                ratioEl.innerText = (dmgRatio*100).toFixed(1) + '%';
+                remainEl.innerText = (remainRatio*100).toFixed(1) + '%';
+                barEl.style.width = (remainRatio*100) + '%';
+                let color;
+                if(remainRatio >= 0.5) color = 'rgb(156,228,26)';
+                else if(remainRatio >= 0.33) color = 'rgb(255,206,56)';
+                else color = 'rgb(255,155,50)';
+                barEl.style.background = color;
+            } else {
+                ratioEl.innerText = '-';
+                remainEl.innerText = '-';
+                barEl.style.width = '100%';
+                barEl.style.background = 'rgb(156,228,26)';
+            }
         });
     }
 
@@ -1030,7 +1080,7 @@
         const sideNameMap = {l:'Left', c:'Center', r:'Right'};
         const toxicStack = {l:0, c:0, r:0};
         const enemyTotals = {l:0, c:0, r:0};
-        const resistFactor = n => n === 10 ? 0.95 : (1 - 0.1*n);
+        const resistFactor = n => n === 10 ? 0.05 : (1 - 0.1*n);
 
         // 各サイドの最大HP取得
         const maxhp = {};
@@ -1127,7 +1177,7 @@
             renderEnemyFormula(row, ctx);
         });
 
-        return enemyTotals;
+        return {totals: enemyTotals, maxhp};
     }
 
     function renderEnemyFormula(row, ctx) {
@@ -1576,74 +1626,4 @@
         target.querySelector('.bp').value = original.querySelector('.bp').value;
         target.querySelector('.bsb-bp').value = original.querySelector('.bsb-bp').value;
         target.querySelector('.eff-mul').value = original.querySelector('.eff-mul').value;
-        target.querySelector('.t-l').checked = original.querySelector('.t-l').checked;
-        target.querySelector('.t-c').checked = original.querySelector('.t-c').checked;
-        target.querySelector('.t-r').checked = original.querySelector('.t-r').checked;
-        target.querySelector('.w-l').checked = original.querySelector('.w-l').checked;
-        target.querySelector('.w-c').checked = original.querySelector('.w-c').checked;
-        target.querySelector('.w-r').checked = original.querySelector('.w-r').checked;
-        target.querySelector('.boost').value = original.querySelector('.boost').value;
-        target.querySelector('.crit-l').checked = original.querySelector('.crit-l').checked;
-        target.querySelector('.crit-c').checked = original.querySelector('.crit-c').checked;
-        target.querySelector('.crit-r').checked = original.querySelector('.crit-r').checked;
-        target.querySelector('.volt-val').value = original.querySelector('.volt-val').value;
-        target.querySelector(`.move-type[value="${originalType}"]`).checked = true;
-
-        // スキルリストのコピー
-        const originalSkills = original.querySelectorAll('.skill-list div');
-        originalSkills.forEach(s => {
-            addSkill(target.querySelector('.col-skills .btn-op'), s.querySelector('input[type="text"]').value, s.querySelector('.skill-val').value);
-        });
-
-        // オプション（二段目）のコピー
-        const originalOpts = original.querySelectorAll('.dynamic-opts .opt-box');
-        originalOpts.forEach(o => {
-            addOption(target.id, o.dataset.type);
-            const targetOpt = target.querySelectorAll('.dynamic-opts .opt-box');
-            const lastOpt = targetOpt[targetOpt.length-1];
-            // 各セレクトボックス等の値を同期
-            const selects = o.querySelectorAll('select');
-            const targetSelects = lastOpt.querySelectorAll('select');
-            selects.forEach((s, idx) => targetSelects[idx].value = s.value);
-            const inputs = o.querySelectorAll('input');
-            const targetInputs = lastOpt.querySelectorAll('input');
-            inputs.forEach((i, idx) => {
-                if(i.type === 'checkbox') targetInputs[idx].checked = i.checked;
-                else targetInputs[idx].value = i.value;
-            });
-        });
-
-        // ターゲット変更前に、コピー元のno-split状態を取得して保存
-        const oZone = original.querySelector('.no-split-zone');
-        const oNoSplitChk = oZone.querySelector('.no-split-chk');
-        const oNoSplitVal = oNoSplitChk ? oNoSplitChk.checked : (oZone.dataset.noSplit === 'true');
-
-        ['.t-l', '.t-c', '.t-r'].forEach(sel => {target.querySelector(sel).dispatchEvent(new Event('change'));});
-
-        // 威力分散なし状態のコピー（チェックボックスがあれば直接、なければdata属性経由で）
-        const tZone = target.querySelector('.no-split-zone');
-        const tNoSplitChk = tZone.querySelector('.no-split-chk');
-        if(tNoSplitChk) {
-            tNoSplitChk.checked = oNoSplitVal;
-        } else {
-            tZone.dataset.noSplit = oNoSplitVal;
-        }
-
-        const oComment =
-            original.querySelector('.comment-text');
-
-        if(oComment) {
-
-            addOption(target.id, 'Comment');
-
-            target.querySelector('.comment-text').value =
-                oComment.value;
-        }
-        
-        allCalculate();
-    }
-
-    window.onload = init;
-</script>
-</body>
-</html>
+        target.querySelector('.t-l').checked = original.quer
