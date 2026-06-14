@@ -1626,4 +1626,74 @@
         target.querySelector('.bp').value = original.querySelector('.bp').value;
         target.querySelector('.bsb-bp').value = original.querySelector('.bsb-bp').value;
         target.querySelector('.eff-mul').value = original.querySelector('.eff-mul').value;
-        target.querySelector('.t-l').checked = original.quer
+        target.querySelector('.t-l').checked = original.querySelector('.t-l').checked;
+        target.querySelector('.t-c').checked = original.querySelector('.t-c').checked;
+        target.querySelector('.t-r').checked = original.querySelector('.t-r').checked;
+        target.querySelector('.w-l').checked = original.querySelector('.w-l').checked;
+        target.querySelector('.w-c').checked = original.querySelector('.w-c').checked;
+        target.querySelector('.w-r').checked = original.querySelector('.w-r').checked;
+        target.querySelector('.boost').value = original.querySelector('.boost').value;
+        target.querySelector('.crit-l').checked = original.querySelector('.crit-l').checked;
+        target.querySelector('.crit-c').checked = original.querySelector('.crit-c').checked;
+        target.querySelector('.crit-r').checked = original.querySelector('.crit-r').checked;
+        target.querySelector('.volt-val').value = original.querySelector('.volt-val').value;
+        target.querySelector(`.move-type[value="${originalType}"]`).checked = true;
+
+        // スキルリストのコピー
+        const originalSkills = original.querySelectorAll('.skill-list div');
+        originalSkills.forEach(s => {
+            addSkill(target.querySelector('.col-skills .btn-op'), s.querySelector('input[type="text"]').value, s.querySelector('.skill-val').value);
+        });
+
+        // オプション（二段目）のコピー
+        const originalOpts = original.querySelectorAll('.dynamic-opts .opt-box');
+        originalOpts.forEach(o => {
+            addOption(target.id, o.dataset.type);
+            const targetOpt = target.querySelectorAll('.dynamic-opts .opt-box');
+            const lastOpt = targetOpt[targetOpt.length-1];
+            // 各セレクトボックス等の値を同期
+            const selects = o.querySelectorAll('select');
+            const targetSelects = lastOpt.querySelectorAll('select');
+            selects.forEach((s, idx) => targetSelects[idx].value = s.value);
+            const inputs = o.querySelectorAll('input');
+            const targetInputs = lastOpt.querySelectorAll('input');
+            inputs.forEach((i, idx) => {
+                if(i.type === 'checkbox') targetInputs[idx].checked = i.checked;
+                else targetInputs[idx].value = i.value;
+            });
+        });
+
+        // ターゲット変更前に、コピー元のno-split状態を取得して保存
+        const oZone = original.querySelector('.no-split-zone');
+        const oNoSplitChk = oZone.querySelector('.no-split-chk');
+        const oNoSplitVal = oNoSplitChk ? oNoSplitChk.checked : (oZone.dataset.noSplit === 'true');
+
+        ['.t-l', '.t-c', '.t-r'].forEach(sel => {target.querySelector(sel).dispatchEvent(new Event('change'));});
+
+        // 威力分散なし状態のコピー（チェックボックスがあれば直接、なければdata属性経由で）
+        const tZone = target.querySelector('.no-split-zone');
+        const tNoSplitChk = tZone.querySelector('.no-split-chk');
+        if(tNoSplitChk) {
+            tNoSplitChk.checked = oNoSplitVal;
+        } else {
+            tZone.dataset.noSplit = oNoSplitVal;
+        }
+
+        const oComment =
+            original.querySelector('.comment-text');
+
+        if(oComment) {
+
+            addOption(target.id, 'Comment');
+
+            target.querySelector('.comment-text').value =
+                oComment.value;
+        }
+        
+        allCalculate();
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
