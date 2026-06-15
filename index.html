@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ポケマスダメージ計算機 v4.7</title>
+    <title>ポケマスダメージ計算機 v5.0 (State駆動版)</title>
     <style>
         body { font-family: "Helvetica Neue", Arial, sans-serif; background-color: #f0f2f5; padding: 15px; font-size: 11px; color: #333; }
         .container { max-width: 1750px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
         .section-title { border-left: 5px solid #3498db; padding-left: 10px; margin: 20px 0 10px; font-weight: bold; font-size: 1.2em; }
-        
+
         .enemy-settings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: #ffebee; padding: 15px; border-radius: 8px; border: 1px solid #ef9a9a; }
         .enemy-card { background: rgba(255,255,255,0.5); padding: 8px; border-radius: 6px; }
         .team-settings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: #e3f2fd; padding: 15px; border-radius: 8px; border: 1px solid #90caf9; }
@@ -16,7 +16,7 @@
         .buddy-main { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed #90caf9; }
         .buddy-stat-row { display: flex; align-items: center; gap: 5px; margin-top: 5px; }
         .buddy-stat-row input { width: 45px; }
-        
+
         .common-buffs { background:#fffde7; padding:12px; border-radius:8px; margin-bottom:20px; border:1px solid #fff59d; }
         .master-opts-area { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 
@@ -52,9 +52,15 @@
         .btn-op-v { writing-mode: vertical-rl; text-orientation: upright; font-size: 9px; cursor: pointer; padding: 2px 1px; width: 22px; height: 44px; }
         .btn-del-row { background: #ff0000; color: white; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-weight: bold; }
         .btn-add-row { width: 100%; padding: 15px; background: #3498db; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1.2em; }
+        .top-bar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+        .btn-reset { padding: 6px 14px; background: #fff; color: #e74c3c; border: 1px solid #e74c3c; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.9em; }
+        .btn-reset:hover { background: #e74c3c; color: #fff; }
         .enemy-action-row { border: 1px solid #f5b7b1; border-radius: 8px; margin-bottom: 10px; background: #fff5f5; }
         .ea-upper { display: flex; gap: 10px; padding: 10px; border-bottom: 1px solid #fadbd8; align-items: flex-start; }
         .ea-lower { display: flex; gap: 10px; padding: 8px 15px; background: #fffafa; flex-wrap: wrap; }
+        .ea-heal-row { display: flex; gap: 10px; padding: 8px 15px; background: #fffafa; flex-wrap: wrap; border-top: 1px dashed #fadbd8; }
+        .ea-heal-box { display: flex; flex-direction: column; gap: 2px; background: #e8f8ed; border-radius: 8px; padding: 4px 8px; border: 1px solid #b7e4c7; font-size: 10px; }
+        .heal-text { color: #1b8a3a; font-weight: bold; }
         .ea-dmgtype { display: flex; flex-direction: column; gap: 2px; background: #fdf2f2; border-radius: 8px; padding: 4px 8px; border: 1px solid #f5c6cb; font-size: 10px; }
         .ea-hp-row { display: grid; grid-template-columns: 20px 1fr; gap: 4px; align-items: center; font-size: 11px; margin-bottom:2px; }
 
@@ -73,6 +79,9 @@
 <body>
 
 <div class="container">
+    <div class="top-bar">
+        <button id="reset-btn" class="btn-reset" onclick="resetToDefault()">現在の入力をリセット（初期化）</button>
+    </div>
     <div class="section-title">敵ステータス設定</div>
     <div class="enemy-settings" id="enemy-root"></div>
 
@@ -88,9 +97,9 @@
                 <option value="Myth">神話</option>
                 <option value="Charisma">カリスマ</option>
             </select>
-            <button onclick="addMasterOption()">+ 追加</button>
+            <button onclick="actions.addMasterOption()">+ 追加</button>
             <label style="background:#e1f5fe; padding:5px 10px; border-radius:5px; cursor:pointer;">
-                <input type="checkbox" id="cheerUp" onchange="allCalculate()"> <b>応援あり(1.5倍)</b>
+                <input type="checkbox" id="cheerUp" onchange="actions.setGlobal('cheerUp', this.checked)"> <b>応援あり(1.5倍)</b>
             </label>
         </div>
         <div class="master-opts-area" id="master-opts-root"></div>
@@ -106,30 +115,11 @@
     <div id="action-list"></div>
 
     <div style="display:flex; gap:0;">
-        <button class="btn-add-row" style="flex:3;" onclick="addActionRow()">+ 新しい行動を追加</button>
-        <button class="btn-add-row" style="flex:1; background:#e74c3c;" onclick="addEnemyActionRow()">+ 敵の行動を追加</button>
+        <button class="btn-add-row" style="flex:3;" onclick="actions.addActionRow()">+ 新しい行動を追加</button>
+        <button class="btn-add-row" style="flex:1; background:#e74c3c;" onclick="actions.addEnemyActionRow()">+ 敵の行動を追加</button>
     </div>
 
-    <div class="total-summary">
-        <div class="total-col">
-            <div>左 合計ダメージ: <span id="total-left" class="total-val">0</span></div>
-            <div class="total-ratio">ダメージ割合: <span id="dmgratio-left">-</span></div>
-            <div class="hp-bar-wrap"><div class="hp-bar-remain" id="hpbar-left" style="width:100%; background:rgb(156,228,26);"></div></div>
-            <div class="hp-bar-label">残りHP: <span id="hpremain-left">-</span></div>
-        </div>
-        <div class="total-col">
-            <div>中央 合計ダメージ: <span id="total-center" class="total-val">0</span></div>
-            <div class="total-ratio">ダメージ割合: <span id="dmgratio-center">-</span></div>
-            <div class="hp-bar-wrap"><div class="hp-bar-remain" id="hpbar-center" style="width:100%; background:rgb(156,228,26);"></div></div>
-            <div class="hp-bar-label">残りHP: <span id="hpremain-center">-</span></div>
-        </div>
-        <div class="total-col">
-            <div>右 合計ダメージ: <span id="total-right" class="total-val">0</span></div>
-            <div class="total-ratio">ダメージ割合: <span id="dmgratio-right">-</span></div>
-            <div class="hp-bar-wrap"><div class="hp-bar-remain" id="hpbar-right" style="width:100%; background:rgb(156,228,26);"></div></div>
-            <div class="hp-bar-label">残りHP: <span id="hpremain-right">-</span></div>
-        </div>
-    </div>
+    <div class="total-summary" id="total-summary"></div>
 
 <!-- 使い方・ヒント セクション -->
     <div class="guide-section">
@@ -206,322 +196,1659 @@
 </div>
 
 <script>
-    const sides = ['Left', 'Center', 'Right'];
-    const sideKeysG = ['l','c','r'];
-    const regions = ['カントー','ジョウト','ホウエン','シンオウ','イッシュ','カロス','アローラ','ガラル','パルデア','パシオ'];
-    const types = ['ノーマル','ほのお','みず','でんき','くさ','こおり','かくとう','どく','じめん','ひこう','エスパー','むし','いわ','ゴースト','ドラゴン','あく','はがね','フェアリー'];
-    const arceusTypes = ['ひのたま','しずく','みどり','いかずち','つらら','こぶし','もうどく','だいち','あおぞら','ふしぎ','たまむし','がんせき','もののけ','りゅう','こわもて','こうてつ','せいれい','まっさら'];
-    const rankTable = {'6':1.8,'5':1.7,'4':1.6,'3':1.5,'2':1.4,'1':1.25,'0':1.0,'-1':0.8,'-2':0.714,'-3':0.666,'-4':0.625,'-5':0.588,'-6':0.555};
-    const rankOptions = ['6','5','4','3','2','1','0','-1','-2','-3','-4','-5','-6'].map(r => `<option value="${r}" ${r==='0'?'selected':''}>${r>0?'+'+r:r}</option>`).join('');
-    let buddyData = [];
+/* ============================================================
+ * 定数定義（現行コードと完全一致）
+ * ============================================================ */
+const SIDES = ['Left', 'Center', 'Right'];          // 表示用（敵ステ要素ID等で使用）
+const SIDE_KEYS = ['l', 'c', 'r'];                   // state内部キー
+const SIDE_NAME_MAP = {l:'Left', c:'Center', r:'Right'};
+const SIDE_LABEL = {l:'左', c:'中', r:'右'};
+const SIDE_LABEL_FULL = {Left:'左', Center:'中央', Right:'右'};
 
-    function init() {
-        const eRoot = document.getElementById('enemy-root');
-        sides.forEach(s => {
-            eRoot.innerHTML += `
-                <div class="enemy-card">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
-                        <span style="font-weight:bold;">${s==='Center'?'中央':s==='Left'?'左':'右'}</span>
-                        <select style="width:55%" onchange="applyPreset('${s}', this.value)">
-                            <option value="">プリセット</option><option value="gymex5">ジムバトルEX5~</option><option value="200">究極(166)</option><option value="166">レジェバト(?)</option><option value="500">チャンバト(?)</option>
-                        </select>
-                    </div>
-                    <div style="border-top:1px solid #ddd; padding-top:5px; display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
-                        防御: <input type="number" id="def-${s}" value="200" oninput="allCalculate()"> ダウン耐性: <select id="res-def-${s}" onchange="allCalculate()">${[0,1,2,3,4,5,6,7,8,9,10].map(v=>`<option value="${v}">${v}</option>`)}</select>
-                    </div>
-                    <div style="border-top:1px solid #ddd; padding-top:5px; display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
-                        特防: <input type="number" id="spdef-${s}" value="200" oninput="allCalculate()"> ダウン耐性: <select id="res-spdef-${s}" onchange="allCalculate()">${[0,1,2,3,4,5,6,7,8,9,10].map(v=>`<option value="${v}">${v}</option>`)}</select>
-                    </div>
-                    <div style="border-top:1px solid #ddd; padding-top:5px; display:flex; justify-content:space-between; align-items:center;">
-                        最大HP: <input type="number" id="maxhp-${s}" placeholder="任意" style="width:100px" oninput="allCalculate()">
-                    </div>
-                    <div style="border-top:1px solid #ddd; padding-top:5px; margin-top:5px;">
-                        <div style="font-size:10px; color:#999; margin-bottom:2px;">耐性(状態異常等)初期値</div>
-                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:2px; font-size:10px;">
-                            <div>バインド<input type="number" id="resist-bind-${s}" min="0" max="10" value="0" style="width:35px" onchange="syncEaResistDefaults('${s}')"></div>
-                            <div>どく<input type="number" id="resist-poison-${s}" min="0" max="10" value="0" style="width:35px" onchange="syncEaResistDefaults('${s}')"></div>
-                            <div>やけど<input type="number" id="resist-burn-${s}" min="0" max="10" value="0" style="width:35px" onchange="syncEaResistDefaults('${s}')"></div>
-                            <div>ダメ場<input type="number" id="resist-zone-${s}" min="0" max="10" value="0" style="width:35px" onchange="syncEaResistDefaults('${s}')"></div>
-                        </div>
-                    </div>
-                </div>`;
-        });
-        const tRoot = document.getElementById('team-root');
-        for(let i=1; i<=3; i++) {
-            tRoot.innerHTML += `
-                <div class="buddy-card" id="buddy-card-${i}">
-                    <div class="buddy-main">
-                        <input type="text" class="b-name" value="バディーズ${i}" style="width:100%" oninput="updateBuddyList()">
-                        <div class="buddy-stat-row">攻撃: <input type="number" class="b-atk-v" value="336" oninput="updateBuddyList()">+BSB<input type="number" class="b-atk-b" value="0" oninput="updateBuddyList()">+チームスキル<input type="number" class="b-atk-t" value="0" oninput="updateBuddyList()">+装備<input type="number" class="b-atk-e" value="0" oninput="updateBuddyList()"></div>
-                        <div class="buddy-stat-row">特攻: <input type="number" class="b-sp-v" value="336" oninput="updateBuddyList()">+BSB<input type="number" class="b-sp-b" value="0" oninput="updateBuddyList()">+チームスキル<input type="number" class="b-sp-t" value="0" oninput="updateBuddyList()">+装備<input type="number" class="b-sp-e" value="0" oninput="updateBuddyList()"></div>
-                        <div style="margin-top:5px; border-top:1px solid #ccc; padding-top:5px;">スキル装備倍率合計値：</div>
-                        <div style="display:flex; justify-content:space-between;">技威力:<input type="number" class="b-skill-p" value="0" style="width:35px" oninput="updateBuddyList()">% B技威力:<input type="number" class="b-skill-b" value="0" style="width:35px" oninput="updateBuddyList()">%</div>
-                        <div style="margin-top:5px; border-top:1px solid #ccc; padding-top:5px; font-size:10px;">相手の状態異常ダメージ増加(合計値):</div>
-                        <div style="display:flex; justify-content:space-between; font-size:10px;">バインド<input type="number" class="b-bind-inc" value="0" style="width:30px" oninput="updateBuddyList(); syncEaIncreaseDefaults();"> どく<input type="number" class="b-poison-inc" value="0" style="width:30px" oninput="updateBuddyList(); syncEaIncreaseDefaults();"> やけど<input type="number" class="b-burn-inc" value="0" style="width:30px" oninput="updateBuddyList(); syncEaIncreaseDefaults();"></div>
-                    </div>
-                    <div class="form-list"></div>
-                    <button class="btn-op" onclick="addBuddyForm(${i})" style="width:100%; background:#90caf9; border:none; color:white; margin-top:5px;">+ 姿追加</button>
-                </div>`;
-        }
-        updateBuddyList();
-        addActionRow();
+const REGIONS = ['カントー','ジョウト','ホウエン','シンオウ','イッシュ','カロス','アローラ','ガラル','パルデア','パシオ'];
+const TYPES = ['ノーマル','ほのお','みず','でんき','くさ','こおり','かくとう','どく','じめん','ひこう','エスパー','むし','いわ','ゴースト','ドラゴン','あく','はがね','フェアリー'];
+const ARCEUS_TYPES = ['ひのたま','しずく','みどり','いかずち','つらら','こぶし','もうどく','だいち','あおぞら','ふしぎ','たまむし','がんせき','もののけ','りゅう','こわもて','こうてつ','せいれい','まっさら'];
+
+const RANK_TABLE = {'6':1.8,'5':1.7,'4':1.6,'3':1.5,'2':1.4,'1':1.25,'0':1.0,'-1':0.8,'-2':0.714,'-3':0.666,'-4':0.625,'-5':0.588,'-6':0.555};
+const RANK_VALUES = ['6','5','4','3','2','1','0','-1','-2','-3','-4','-5','-6'];
+
+// タイプ抵抗の選択肢（value=倍率, label=表示名）。デフォルトは'-1'(1.3倍)
+const RESIST_OPTIONS = [
+    {value:0.625, label:'+3'},
+    {value:0.666, label:'+2'},
+    {value:0.769, label:'+1'},
+    {value:1.3,   label:'-1'},
+    {value:1.5,   label:'-2'},
+    {value:1.6,   label:'-3'}
+];
+const RESIST_VAL_TO_LABEL = {0.625:'+3',0.666:'+2',0.769:'+1',1.3:'-1',1.5:'-2',1.6:'-3'};
+const RESIST_LABEL_TO_VAL = {'+3':0.625,'+2':0.666,'+1':0.769,'-1':1.3,'-2':1.5,'-3':1.6};
+
+// ダメージの場：タイプ抵抗倍率テーブル
+const ZONE_TYPE_RESIST_TABLE = {'-3':10/16,'-2':10/15,'-1':10/13,'0':10/10,'1':13/10,'2':15/10,'3':16/10};
+
+/* ============================================================
+ * State定義（唯一のデータソース）
+ * ============================================================ */
+let state = null; // init()で生成
+
+function createInitialEnemy(maxHp = null, resistDefaults = null) {
+    return {
+        def: 200,
+        spdef: 200,
+        resDef: 0,
+        resSpdef: 0,
+        maxHp: maxHp,
+        resistDefaults: resistDefaults || { bind:0, poison:0, burn:0, zone:0 }
+    };
+}
+
+function createInitialBuddyForm(name, vals = null) {
+    const v = vals || { atkV:336, atkB:0, atkT:0, atkE:0, spV:336, spB:0, spT:0, spE:0, skP:0, skB:0, bindInc:0, poisonInc:0, burnInc:0 };
+    return {
+        formId: 'form-' + Date.now() + '-' + Math.random(),
+        name: name,
+        atk: { value: Number(v.atkV), bsb: Number(v.atkB), team: Number(v.atkT), equip: Number(v.atkE) },
+        spatk: { value: Number(v.spV), bsb: Number(v.spB), team: Number(v.spT), equip: Number(v.spE) },
+        skillMultiP: Number(v.skP),
+        skillMultiB: Number(v.skB),
+        enemyDmgIncrease: { bind: Number(v.bindInc), poison: Number(v.poisonInc), burn: Number(v.burnInc) }
+    };
+}
+
+function createInitialActionRow() {
+    return {
+        id: 'row-' + Date.now() + '-' + Math.random(),
+
+        buddyName: 'バディーズ1', // .buddy-select の選択値（デフォルトは本体カード1の本体名）
+        moveName: '',
+        moveCat: 'physical',     // 'physical' | 'special'
+        moveType: 'normal',      // 'normal' | 'b' | 'bd'
+
+        myStatType: 'atk',       // 'atk' | 'spatk'
+        myRank: 0,
+
+        enStatType: 'def',       // 'def' | 'spdef'
+        enRank: { l:0, c:0, r:0 },
+
+        bp: 200,
+        bsbBp: 0,
+
+        effMul: 100,
+
+        targets: { l:false, c:true, r:false },
+        noSplit: false,
+        weak: { l:false, c:false, r:false },
+
+        boost: 0,
+
+        skills: [], // { id, name, value }
+
+        crit: { l:true, c:true, r:true },
+        volt: 0,
+
+        dynamicOptions: [], // 各種 { id, type, ... }
+
+        comment: null, // null=未追加, 文字列=コメント本文
+
+        formulaOpen: false
+    };
+}
+
+function createInitialEnemyActionRow() {
+    return {
+        id: 'earow-' + Date.now() + '-' + Math.random(),
+        target: 'c',
+        moveName: '',
+        category: 'normal', // 'normal' | 't' | 'b' | 'bd'
+
+        bind:   { active:false, res:0, inc:0 },
+        poison: { active:false, ptype:'poison', res:0, inc:0 }, // ptype: 'poison'|'badpoison'
+        burn:   { active:false, res:0, inc:0 },
+        weather:{ active:false },
+        zone:   { active:false, res:0, weak:false, typeResist:0 },
+
+        // 回復（即時回復・回復付帯）。左/中/右それぞれ個別設定。
+        heal: {
+            l: 0, c: 0, r: 0,            // 回復量(%)。0-100の数値
+            bonus: { l:false, c:false, r:false } // 回復付帯（チェックボックス）
+        },
+
+        bcBefore: 6,
+        bcAfter: 5,
+
+        formulaOpen: false
+    };
+}
+
+function init() {
+    state = {
+        global: {
+            cheerUp: false
+        },
+        enemies: {
+            l: createInitialEnemy(),
+            c: createInitialEnemy(),
+            r: createInitialEnemy()
+        },
+        buddyCards: [
+            { cardId: 1, forms: [ createInitialBuddyForm('バディーズ1') ] },
+            { cardId: 2, forms: [ createInitialBuddyForm('バディーズ2') ] },
+            { cardId: 3, forms: [ createInitialBuddyForm('バディーズ3') ] }
+        ],
+        masterOptions: [],
+        // actionRows と enemyActionRows は現行コードでは同一の#action-list内に
+        // 追加順で混在表示される。表示順を保持するため、単一配列 actionList に
+        // { rowType: 'action' | 'enemy', data: {...} } を格納する。
+        actionList: [],
+        derived: null // 毎回 recalc() で再生成
+    };
+
+    // ---- 自動復元（優先度1） ----
+    // localStorageに保存済みデータがあれば、それを復元してデフォルト初期化をスキップする
+    const restored = loadFromLocalStorage();
+    if (restored) {
+        render();
+        return;
     }
 
-    function applyPreset(side, val) {
-        if(!val) return;
-        if(val === 'gymex5') {
-            document.getElementById(`def-${side}`).value = 166;
-            document.getElementById(`spdef-${side}`).value = 166;
-            document.getElementById(`res-def-${side}`).value = 5;
-            document.getElementById(`res-spdef-${side}`).value = 5;
-            // 最大HP：中央22,176,000、左右はその半分
-            document.getElementById(`maxhp-${side}`).value = side === 'Center' ? 22176000 : 11088000;
-            // 耐性初期値：やけど・バインド・ダメージの場=9、どく=10
-            document.getElementById(`resist-bind-${side}`).value = 9;
-            document.getElementById(`resist-burn-${side}`).value = 9;
-            document.getElementById(`resist-zone-${side}`).value = 9;
-            document.getElementById(`resist-poison-${side}`).value = 10;
-            syncEaResistDefaults(side);
-            allCalculate();
-            return;
-        }
-        document.getElementById(`def-${side}`).value = val;
-        document.getElementById(`spdef-${side}`).value = val;
-        document.getElementById(`res-def-${side}`).value = 5;
-        document.getElementById(`res-spdef-${side}`).value = 5;
-        allCalculate();
+    // ---- 初期State調整（優先度2: 新規アクセス時のデフォルト） ----
+    // 1. 敵ステータスに「ジムバトルEX5~」プリセットを初期適用
+    //    （applyEnemyPresetのgymex5ロジックと同内容を3サイド分に適用）
+    SIDE_KEYS.forEach(side => {
+        const e = state.enemies[side];
+        e.def = 166;
+        e.spdef = 166;
+        e.resDef = 5;
+        e.resSpdef = 5;
+        e.maxHp = (side === 'c') ? 22176000 : 11088000; // 中央22,176,000 / 左右はその半分
+        e.resistDefaults.bind = 9;
+        e.resistDefaults.burn = 9;
+        e.resistDefaults.zone = 9;
+        e.resistDefaults.poison = 10;
+    });
+
+    // 2. 味方行動行を1行事前追加（バディーズ名は「バディーズ1」をデフォルト選択）
+    {
+        const row = createInitialActionRow();
+        row.buddyName = deriveBuddyOptions()[0]?.name || 'バディーズ1';
+        state.actionList.push({ rowType: 'action', data: row });
     }
 
-    function addBuddyForm(n) {
-        const div = document.createElement('div');
-        const card = document.querySelector(`#buddy-card-${n}`);
-        const formList = card.querySelector(`.form-list`);
-        const existingForms = formList.querySelectorAll('.buddy-main').length;
-        const autoName = card.querySelector(':scope > .buddy-main .b-name').value + `-姿${existingForms + 2}`;
-        const last = formList.querySelector('.buddy-main:last-child') || card.querySelector(':scope > .buddy-main');
-        const vals = last ? {
-            atkV: last.querySelector('.b-atk-v').value,
-            atkB: last.querySelector('.b-atk-b').value,
-            atkT: last.querySelector('.b-atk-t').value,
-            atkE: last.querySelector('.b-atk-e').value,
+    render();
+}
 
-            spV: last.querySelector('.b-sp-v').value,
-            spB: last.querySelector('.b-sp-b').value,
-            spT: last.querySelector('.b-sp-t').value,
-            spE: last.querySelector('.b-sp-e').value,
+/* ============================================================
+ * render（描画）
+ * state.derived を再生成してから、DOM全体を再構築する。
+ * 入力欄は value 属性に state の値をバインドし、
+ * onChange/onInput で actions.* を呼び出してstateを更新する。
+ * ============================================================ */
 
-            skP: last.querySelector('.b-skill-p').value,
-            skB: last.querySelector('.b-skill-b').value,
+/* ============================================================
+ * 自動保存・自動復元（localStorage）
+ * ============================================================ */
+const STORAGE_KEY = 'pokemas_calc_state_v5';
 
-            bindInc: 0, poisonInc: 0, burnInc: 0
-        } : {
-            atkV:336, atkB:0, atkT:0, atkE:0,
-            spV:336, spB:0, spT:0, spE:0,
-            skP:0, skB:0,
-            bindInc: 0, poisonInc: 0, burnInc: 0
+// 現在のstateを保存する（derivedは再生成可能なため除外）
+function saveToLocalStorage() {
+    try {
+        const toSave = {
+            global: state.global,
+            enemies: state.enemies,
+            buddyCards: state.buddyCards,
+            masterOptions: state.masterOptions,
+            actionList: state.actionList
         };
-        div.className = 'buddy-main';
-        div.innerHTML = `
-            <div style="display:flex;"><input type="text" class="b-name" placeholder="姿名" value="${autoName}" oninput="updateBuddyList()" style="width:80%"><button onclick="this.parentElement.parentElement.remove(); updateBuddyList();" style="border:none;background:none;cursor:pointer;">×</button></div>
-            <div class="buddy-stat-row">攻撃: <input type="number" class="b-atk-v" value="${vals.atkV}" oninput="updateBuddyList()">+BSB<input type="number" class="b-atk-b" value="${vals.atkB}" oninput="updateBuddyList()">+チームスキル<input type="number" class="b-atk-t" value="${vals.atkT}" oninput="updateBuddyList()">+装備<input type="number" class="b-atk-e" value="${vals.atkE}" oninput="updateBuddyList()"></div>
-            <div class="buddy-stat-row">特攻: <input type="number" class="b-sp-v" value="${vals.spV}" oninput="updateBuddyList()">+BSB<input type="number" class="b-sp-b" value="${vals.spB}" oninput="updateBuddyList()">+チームスキル<input type="number" class="b-sp-t" value="${vals.spT}" oninput="updateBuddyList()">+装備<input type="number" class="b-sp-e" value="${vals.spE}" oninput="updateBuddyList()"></div>
-            <div style="margin-top:5px; border-top:1px solid #ccc; padding-top:5px;">スキル装備倍率合計値：</div>
-            <div style="display:flex; justify-content:space-between; margin-top:5px;">技威力:<input type="number" class="b-skill-p" value="${vals.skP}" style="width:35px" oninput="updateBuddyList()">% B技威力:<input type="number" class="b-skill-b" value="${vals.skB}" style="width:35px" oninput="updateBuddyList()">%</div>
-            <div style="margin-top:5px; border-top:1px solid #ccc; padding-top:5px; font-size:10px;">相手の状態異常ダメージ増加(合計値):</div>
-            <div style="display:flex; justify-content:space-between; font-size:10px;">バインド<input type="number" class="b-bind-inc" value="${vals.bindInc}" style="width:30px" oninput="updateBuddyList(); syncEaIncreaseDefaults();"> どく<input type="number" class="b-poison-inc" value="${vals.poisonInc}" style="width:30px" oninput="updateBuddyList(); syncEaIncreaseDefaults();"> やけど<input type="number" class="b-burn-inc" value="${vals.burnInc}" style="width:30px" oninput="updateBuddyList(); syncEaIncreaseDefaults();"></div>`;
-        document.querySelector(`#buddy-card-${n} .form-list`).appendChild(div);
-        updateBuddyList();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    } catch (e) {
+        // 保存失敗時は静かに無視（容量超過やプライベートモード等）
+        console.warn('自動保存に失敗しました:', e);
     }
+}
 
-    function updateBuddyList() {
-        buddyData = [];
-        document.querySelectorAll('.buddy-card').forEach(card => {
-            card.querySelectorAll('.buddy-main').forEach((m, mi) => {
-                const rawName = m.querySelector('.b-name').value.trim();
-                const cardIdx = [...document.querySelectorAll('.buddy-card')].indexOf(card) + 1;
-                const name = rawName || (mi === 0 ? `バディーズ${cardIdx}` : `バディーズ${cardIdx}-姿${mi + 1}`);
-                if(!name) return;
-                const totalAtk = ['-v','-b','-t','-e'].reduce((a,c)=>a+Number(m.querySelector('.b-atk'+c).value), 0);
-                const totalSp = ['-v','-b','-t','-e'].reduce((a,c)=>a+Number(m.querySelector('.b-sp'+c).value), 0);
-                buddyData.push({ 
-                    name, 
-                    atk: totalAtk, 
-                    spatk: totalSp,
-                    skP: m.querySelector('.b-skill-p').value,
-                    skB: m.querySelector('.b-skill-b').value
-                });
+// 保存済みデータを読み込み、stateに復元する。成功したらtrueを返す。
+function loadFromLocalStorage() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return false;
+        const saved = JSON.parse(raw);
+        if (!saved || !saved.actionList) return false;
+
+        state.global = saved.global || { cheerUp: false };
+        state.enemies = saved.enemies || state.enemies;
+        state.buddyCards = saved.buddyCards || state.buddyCards;
+        state.masterOptions = saved.masterOptions || [];
+        state.actionList = saved.actionList || [];
+
+        // マイグレーション：古い形式の保存データに不足しているフィールドを補完
+        migrateActionList(state.actionList);
+
+        return true;
+    } catch (e) {
+        console.warn('自動復元に失敗しました:', e);
+        return false;
+    }
+}
+
+// 復元したactionListに、後から追加されたフィールドが欠けていれば補完する
+function migrateActionList(actionList) {
+    actionList.forEach(item => {
+        if (item.rowType === 'enemy') {
+            const row = item.data;
+            if (!row.heal) {
+                row.heal = { l: 0, c: 0, r: 0, bonus: { l:false, c:false, r:false } };
+            } else if (!row.heal.bonus) {
+                row.heal.bonus = { l:false, c:false, r:false };
+            }
+        }
+    });
+}
+
+// 「現在の入力をリセット（初期化）」ボタン用
+function resetToDefault() {
+    const btn = document.getElementById('reset-btn');
+    if (!btn) { doReset(); return; }
+
+    // 2段階確認：1回目クリックで「本当に？」表示に切り替え、
+    // 一定時間内に2回目クリックされたら実行する
+    if (btn.dataset.confirming === 'true') {
+        doReset();
+        return;
+    }
+    btn.dataset.confirming = 'true';
+    btn.textContent = '本当にリセットしますか？(もう一度クリック)';
+    btn.style.background = '#e74c3c';
+    btn.style.color = '#fff';
+
+    clearTimeout(window._resetConfirmTimer);
+    window._resetConfirmTimer = setTimeout(() => {
+        btn.dataset.confirming = 'false';
+        btn.textContent = '現在の入力をリセット（初期化）';
+        btn.style.background = '#fff';
+        btn.style.color = '#e74c3c';
+    }, 3000);
+}
+
+function doReset() {
+    try {
+        localStorage.removeItem(STORAGE_KEY);
+    } catch (e) {}
+    init();
+}
+
+function render() {
+    recalc();
+    renderEnemySettings();
+    renderTeamSettings();
+    renderMasterOptions();
+    renderActionList();
+    renderTotalSummary();
+    saveToLocalStorage();
+}
+
+// ---- 敵ステータス設定 ----
+function renderEnemySettings() {
+    const root = document.getElementById('enemy-root');
+    root.innerHTML = SIDE_KEYS.map(c => {
+        const e = state.enemies[c];
+        const sideLabel = SIDE_LABEL_FULL[SIDE_NAME_MAP[c]];
+        const rankSelectOptions = (currentVal) => RANK_VALUES.map(r =>
+            `<option value="${r}" ${String(currentVal)===r?'selected':''}>${r>0?'+'+r:r}</option>`
+        ).join('');
+
+        return `
+            <div class="enemy-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                    <span style="font-weight:bold;">${sideLabel}</span>
+                    <select style="width:55%" onchange="actions.applyEnemyPreset('${c}', this.value)">
+                        <option value="">プリセット</option><option value="gymex5">ジムバトルEX5~</option><option value="200">究極(166)</option><option value="166">レジェバト(?)</option><option value="500">チャンバト(?)</option>
+                    </select>
+                </div>
+                <div style="border-top:1px solid #ddd; padding-top:5px; display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                    防御: <input type="number" value="${e.def}" oninput="actions.setEnemyField('${c}','def',this.value)"> ダウン耐性: <select onchange="actions.setEnemyField('${c}','resDef',this.value)">${[0,1,2,3,4,5,6,7,8,9,10].map(v=>`<option value="${v}" ${v===e.resDef?'selected':''}>${v}</option>`).join('')}</select>
+                </div>
+                <div style="border-top:1px solid #ddd; padding-top:5px; display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                    特防: <input type="number" value="${e.spdef}" oninput="actions.setEnemyField('${c}','spdef',this.value)"> ダウン耐性: <select onchange="actions.setEnemyField('${c}','resSpdef',this.value)">${[0,1,2,3,4,5,6,7,8,9,10].map(v=>`<option value="${v}" ${v===e.resSpdef?'selected':''}>${v}</option>`).join('')}</select>
+                </div>
+                <div style="border-top:1px solid #ddd; padding-top:5px; display:flex; justify-content:space-between; align-items:center;">
+                    最大HP: <input type="number" value="${e.maxHp != null ? e.maxHp : ''}" placeholder="任意" style="width:100px" oninput="actions.setEnemyField('${c}','maxHp',this.value)">
+                </div>
+                <div style="border-top:1px solid #ddd; padding-top:5px; margin-top:5px;">
+                    <div style="font-size:10px; color:#999; margin-bottom:2px;">耐性(状態異常等)初期値</div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:2px; font-size:10px;">
+                        <div>バインド<input type="number" min="0" max="10" value="${e.resistDefaults.bind}" style="width:35px" onchange="actions.setEnemyResistDefault('${c}','bind',this.value)"></div>
+                        <div>どく<input type="number" min="0" max="10" value="${e.resistDefaults.poison}" style="width:35px" onchange="actions.setEnemyResistDefault('${c}','poison',this.value)"></div>
+                        <div>やけど<input type="number" min="0" max="10" value="${e.resistDefaults.burn}" style="width:35px" onchange="actions.setEnemyResistDefault('${c}','burn',this.value)"></div>
+                        <div>ダメ場<input type="number" min="0" max="10" value="${e.resistDefaults.zone}" style="width:35px" onchange="actions.setEnemyResistDefault('${c}','zone',this.value)"></div>
+                    </div>
+                </div>
+            </div>`;
+    }).join('');
+}
+
+// ---- 味方バディーズ設定 ----
+function renderTeamSettings() {
+    const root = document.getElementById('team-root');
+    root.innerHTML = state.buddyCards.map((card, cardIdx) => {
+        const formsHtml = card.forms.map((form, formIdx) => {
+            const isMain = formIdx === 0;
+            const nameInput = isMain
+                ? `<input type="text" value="${escapeAttr(form.name)}" style="width:100%" oninput="actions.setBuddyField(${cardIdx},${formIdx},'name',this.value)">`
+                : `<div style="display:flex;"><input type="text" placeholder="姿名" value="${escapeAttr(form.name)}" oninput="actions.setBuddyField(${cardIdx},${formIdx},'name',this.value)" style="width:80%"><button onclick="actions.removeBuddyForm(${cardIdx},${formIdx})" style="border:none;background:none;cursor:pointer;">×</button></div>`;
+
+            return `
+            <div class="buddy-main">
+                ${nameInput}
+                <div class="buddy-stat-row">攻撃: <input type="number" value="${form.atk.value}" oninput="actions.setBuddyStat(${cardIdx},${formIdx},'atk','value',this.value)">+BSB<input type="number" value="${form.atk.bsb}" oninput="actions.setBuddyStat(${cardIdx},${formIdx},'atk','bsb',this.value)">+チームスキル<input type="number" value="${form.atk.team}" oninput="actions.setBuddyStat(${cardIdx},${formIdx},'atk','team',this.value)">+装備<input type="number" value="${form.atk.equip}" oninput="actions.setBuddyStat(${cardIdx},${formIdx},'atk','equip',this.value)"></div>
+                <div class="buddy-stat-row">特攻: <input type="number" value="${form.spatk.value}" oninput="actions.setBuddyStat(${cardIdx},${formIdx},'spatk','value',this.value)">+BSB<input type="number" value="${form.spatk.bsb}" oninput="actions.setBuddyStat(${cardIdx},${formIdx},'spatk','bsb',this.value)">+チームスキル<input type="number" value="${form.spatk.team}" oninput="actions.setBuddyStat(${cardIdx},${formIdx},'spatk','team',this.value)">+装備<input type="number" value="${form.spatk.equip}" oninput="actions.setBuddyStat(${cardIdx},${formIdx},'spatk','equip',this.value)"></div>
+                <div style="margin-top:5px; border-top:1px solid #ccc; padding-top:5px;">スキル装備倍率合計値：</div>
+                <div style="display:flex; justify-content:space-between;">技威力:<input type="number" value="${form.skillMultiP}" style="width:35px" oninput="actions.setBuddyField(${cardIdx},${formIdx},'skillMultiP',this.value)">% B技威力:<input type="number" value="${form.skillMultiB}" style="width:35px" oninput="actions.setBuddyField(${cardIdx},${formIdx},'skillMultiB',this.value)">%</div>
+                <div style="margin-top:5px; border-top:1px solid #ccc; padding-top:5px; font-size:10px;">相手の状態異常ダメージ増加(合計値):</div>
+                <div style="display:flex; justify-content:space-between; font-size:10px;">バインド<input type="number" value="${form.enemyDmgIncrease.bind}" style="width:30px" oninput="actions.setBuddyEnemyInc(${cardIdx},${formIdx},'bind',this.value)"> どく<input type="number" value="${form.enemyDmgIncrease.poison}" style="width:30px" oninput="actions.setBuddyEnemyInc(${cardIdx},${formIdx},'poison',this.value)"> やけど<input type="number" value="${form.enemyDmgIncrease.burn}" style="width:30px" oninput="actions.setBuddyEnemyInc(${cardIdx},${formIdx},'burn',this.value)"></div>
+            </div>`;
+        }).join('');
+
+        return `
+            <div class="buddy-card">
+                ${formsHtml}
+                <button class="btn-op" onclick="actions.addBuddyForm(${cardIdx})" style="width:100%; background:#90caf9; border:none; color:white; margin-top:5px;">+ 姿追加</button>
+            </div>`;
+    }).join('');
+}
+
+// ---- 全体共通設定 ----
+function renderMasterOptions() {
+    const root = document.getElementById('master-opts-root');
+    const numOpt = (cur) => [1,2,3].map(v=>`<option value="${v}" ${Number(cur)===v?'selected':''}>${v}</option>`).join('');
+    const regOpt = (cur) => REGIONS.map(v=>`<option value="${v}" ${cur===v?'selected':''}>${v}</option>`).join('');
+    const arceusOpt = (cur) => ARCEUS_TYPES.map(v=>`<option value="${v}" ${cur===v?'selected':''}>${v}</option>`).join('');
+    const typesOpt = (cur) => TYPES.map(v=>`<option value="${v}" ${cur===v?'selected':''}>${v}</option>`).join('');
+
+    root.innerHTML = state.masterOptions.map((mo, idx) => {
+        let html = '';
+        if (mo.type === 'MP') {
+            html = `マスター: <select onchange="actions.setMasterOptionField(${idx},'region',this.value)">${regOpt(mo.region)}</select>の<select onchange="actions.setMasterOptionField(${idx},'kind',this.value)"><option value="先導" ${mo.kind==='先導'?'selected':''}>先導</option><option value="闘志" ${mo.kind==='闘志'?'selected':''}>闘志</option><option value="信念" ${mo.kind==='信念'?'selected':''}>信念</option></select> タグ:<select onchange="actions.setMasterOptionField(${idx},'n',this.value)">${numOpt(mo.n)}</select>人`;
+        } else if (mo.type === 'MEX') {
+            html = `マスターEX: <select onchange="actions.setMasterOptionField(${idx},'region',this.value)">${regOpt(mo.region)}</select>の○○ タグ:<select onchange="actions.setMasterOptionField(${idx},'n',this.value)">${numOpt(mo.n)}</select>人`;
+        } else if (mo.type === 'Myth') {
+            html = `神話: <select onchange="actions.setMasterOptionField(${idx},'region',this.value)">${arceusOpt(mo.region)}</select>の神話 タグ:<select onchange="actions.setMasterOptionField(${idx},'n',this.value)">${numOpt(mo.n)}</select>人`;
+        } else if (mo.type === 'Charisma') {
+            html = `カリスマ: <select onchange="actions.setMasterOptionField(${idx},'region',this.value)">${typesOpt(mo.region)}</select>のカリスマ タグ:<select onchange="actions.setMasterOptionField(${idx},'n',this.value)">${numOpt(mo.n)}</select>人`;
+        }
+        return `<div class="opt-box" data-type="${mo.type}">${html} <span class="opt-del" onclick="actions.removeMasterOption(${idx})">×</span></div>`;
+    }).join('');
+
+    // cheerUpチェックボックスの状態反映（再描画のたびにcheckedを上書き）
+    const cb = document.getElementById('cheerUp');
+    if (cb) cb.checked = state.global.cheerUp;
+}
+
+// HTML属性内の文字列をエスケープ
+function escapeAttr(str) {
+    return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+/* ============================================================
+ * 計算ロジック（現行 allCalculate + calcAllEnemyActions の完全移植）
+ * state全体を読み取り、state.derived を再生成する。
+ * DOMへの書き込みは一切行わない（render側の責務）。
+ * ============================================================ */
+
+// buddyCards から buddy-select の選択肢リストを生成（updateBuddyList相当）
+function deriveBuddyOptions() {
+    const options = [];
+    state.buddyCards.forEach((card, cardIdx) => {
+        card.forms.forEach((form, formIdx) => {
+            const rawName = (form.name || '').trim();
+            const name = rawName || (formIdx === 0 ? `バディーズ${cardIdx+1}` : `バディーズ${cardIdx+1}-姿${formIdx+1}`);
+            const totalAtk = form.atk.value + form.atk.bsb + form.atk.team + form.atk.equip;
+            const totalSp  = form.spatk.value + form.spatk.bsb + form.spatk.team + form.spatk.equip;
+            options.push({
+                name,
+                atk: totalAtk,
+                spatk: totalSp,
+                skP: Number(form.skillMultiP),
+                skB: Number(form.skillMultiB)
             });
         });
-        document.querySelectorAll('.buddy-select').forEach(sel => {
-            const cur = sel.value;
-            sel.innerHTML = buddyData.map(b => `<option value="${b.name}" data-atk="${b.atk}" data-spatk="${b.spatk}" data-skp="${b.skP}" data-skb="${b.skB}">${b.name}</option>`).join('');
-            if(cur) sel.value = cur;
+    });
+    return options;
+}
+
+// 味方の状態異常ダメージ増加(合計値)を算出（applyEaIncreaseDefaults相当）
+function deriveEnemyIncreaseDefaults() {
+    let bindInc = 0, poisonInc = 0, burnInc = 0;
+    state.buddyCards.forEach(card => {
+        card.forms.forEach(form => {
+            bindInc   += Number(form.enemyDmgIncrease.bind || 0);
+            poisonInc += Number(form.enemyDmgIncrease.poison || 0);
+            burnInc   += Number(form.enemyDmgIncrease.burn || 0);
         });
-        allCalculate();
+    });
+    return { bind: bindInc, poison: poisonInc, burn: burnInc };
+}
+
+// 耐性10の特殊計算（resistFactor相当）
+function resistFactor(n) {
+    return n === 10 ? 0.05 : (1 - 0.1 * n);
+}
+
+// 1つの action row を計算する（allCalculate内の row 処理を完全移植）
+// 戻り値: { resByTarget: {l,c,r}（0.95倍済み表示値）, formula: ctx, addToTotals: {Left,Center,Right} }
+function calcActionRow(row, buddyOptions) {
+    const moveType = row.moveType; // 'normal'|'b'|'bd'
+    const mCat = row.moveCat;      // 'physical'|'special'
+    const isB = moveType === 'b';
+    const isBD = moveType === 'bd';
+    const isCheer = state.global.cheerUp;
+
+    // バディーズステータスの取得
+    const opt = buddyOptions.find(b => b.name === row.buddyName);
+    if (!opt) {
+        // 現行コード: optが無ければ return（このrowは計算スキップ＝表示更新なし）
+        return null;
+    }
+    const baseStat = row.myStatType === 'atk' ? opt.atk : opt.spatk;
+    const skP = opt.skP, skB = opt.skB;
+
+    // ブーストと上昇スキルの加算
+    const bstLevel = Number(row.boost);
+    const bstRate = isB ? 10 : (isBD ? 0 : 40);
+    let skillAdd = bstLevel * bstRate;
+    row.skills.forEach(sk => { skillAdd += Number(sk.value); });
+
+    // マスターパッシブ等の加算（条件判定）
+    state.masterOptions.forEach(mo => {
+        const type = mo.type;
+        const n = Number(mo.n);
+        if (type === 'MP') {
+            if (isB || isBD) return;
+            const kind = mo.kind;
+            if (kind === '先導') skillAdd += [0,10,20,30][n];
+            else if (kind === '闘志' && mCat === 'physical') skillAdd += [0,20,35,50][n];
+            else if (kind === '信念' && mCat === 'special') skillAdd += [0,20,35,50][n];
+        } else if (type === 'MEX') {
+            if (isBD) return;
+            skillAdd += [0,20,35,50][n];
+        } else if (type === 'Myth') {
+            if (isB || isBD) return;
+            skillAdd += [0,10,20,30][n];
+        } else if (type === 'Charisma') {
+            if (isB || isBD) return;
+            skillAdd += [0,10,15,20][n];
+        }
+    });
+
+    const volt = Number(row.volt);
+    const bp = Number(row.bp) + Number(row.bsbBp);
+    let fBP = Math.floor(bp * (1 + skillAdd / 100));
+    fBP = fBP * (volt + 2) / 2;
+
+    // 基本倍率
+    let baseMulti = (Number(row.effMul) / 100) * (isCheer ? 1.5 : 1.0);
+
+    // スキル装備倍率（独立積算）
+    if (isB) baseMulti *= (1 + skB / 100);
+    else if (!isBD) baseMulti *= (1 + skP / 100);
+
+    // その他オプション
+    let superEffActive = false;
+    let reduceStatActive = false;
+    let burnActive = false;
+    let reduceSkillMulti_l = 1.0, reduceSkillMulti_c = 1.0, reduceSkillMulti_r = 1.0;
+    let wtzMulti = 1.0;
+    let resistMulti_l = 1.0, resistMulti_c = 1.0, resistMulti_r = 1.0;
+    let circleMulti = 1.0;
+    const otherMulti = 1.0; // 現行コードのotherMultiは常に1.0（otherVals[c]はsideMulti側で個別適用）
+
+    row.dynamicOptions.forEach(box => {
+        const type = box.type;
+        if (type === 'WTZ') wtzMulti *= Number(box.value);
+        if (type === 'Resist') {
+            resistMulti_l *= Number(box.l);
+            resistMulti_c *= Number(box.c);
+            resistMulti_r *= Number(box.r);
+        }
+        if (type === 'SuperEff' && box.active) superEffActive = true;
+        if (type === 'ReduceStat' && box.active) reduceStatActive = true;
+        if (type === 'ReduceSkill') {
+            const rv = Number(box.value);
+            if (box.l) reduceSkillMulti_l *= rv;
+            if (box.c) reduceSkillMulti_c *= rv;
+            if (box.r) reduceSkillMulti_r *= rv;
+        }
+        if (type === 'Burn' && box.active && mCat === 'physical') burnActive = 0.8;
+        if (type === 'Circle' && !isBD) {
+            const ct = box.circleType, cn = Number(box.n);
+            if (ct === '防御') circleMulti *= (21 + cn) / 20;
+            else if ((ct === '物理' && mCat === 'physical') || (ct === '特殊' && mCat === 'special')) circleMulti *= (11 + cn) / 10;
+        }
+    });
+
+    // ── 計算式表示用コンテキスト収集 ──
+    const formulaCtx = {
+        isB, isBD, mCat,
+        baseStat,
+        atkRankRaw: Number(row.myRank),
+        skP, skB,
+        bstLevel, bstRate,
+        skillAdd,
+        volt,
+        bpRaw: Number(row.bp),
+        bsbBp: Number(row.bsbBp),
+        fBP,
+        effMul: Number(row.effMul),
+        isCheer,
+        baseMulti,
+        wtzMulti, resistMulti_l, resistMulti_c, resistMulti_r, circleMulti,
+        reduceSkillMulti_l, reduceSkillMulti_c, reduceSkillMulti_r,
+        burnActive,
+        statTypeName: row.myStatType === 'atk' ? '攻撃' : '特攻',
+        enStatTypeName: row.enStatType === 'def' ? '防御' : '特防',
+        wtzNames: [], resistNames: {l:[],c:[],r:[]}, reduceSkillNames: {l:[],c:[],r:[]},
+        circleNames: [], circleMults: [], skillNames: [],
+        masterNames: [],
+        superEffActive, reduceStatActive,
+        breakActive: {l:false,c:false,r:false},
+        ngActive: {l:false,c:false,r:false},
+        otherVals: {l:1,c:1,r:1},
+        weakActive: {
+            l: row.targets.l && row.weak.l,
+            c: row.targets.c && row.weak.c,
+            r: row.targets.r && row.weak.r
+        },
+        critActive: { l: row.crit.l, c: row.crit.c, r: row.crit.r },
+        eDef: {l:0,c:0,r:0},
+        eRankRaw: {l:0,c:0,r:0},
+        eRankMul: {l:1,c:1,r:1},
+        fDef: {l:0,c:0,r:0},
+        dmgResult: {l:0,c:0,r:0},
+        critAtkRank: {l:0,c:0,r:0},
+        moveName: row.moveName || '技'
+    };
+
+    // オプション名収集
+    row.dynamicOptions.forEach(box => {
+        const type = box.type;
+        if (type === 'WTZ') formulaCtx.wtzNames.push(Number(box.value) === 3.0 ? 'EXWTZ' : 'WTZ');
+        if (type === 'Resist') {
+            SIDE_KEYS.forEach(c => {
+                const rv = Number(box[c]);
+                formulaCtx.resistNames[c].push('抵抗' + (RESIST_VAL_TO_LABEL[rv] || rv));
+            });
+        }
+        if (type === 'ReduceSkill') {
+            const rv = Number(box.value);
+            SIDE_KEYS.forEach(c => {
+                if (box[c]) formulaCtx.reduceSkillNames[c].push(rv.toString() + '倍');
+            });
+        }
+        if (type === 'Circle' && !isBD) {
+            const loc = box.loc, cn = box.n, ct = box.circleType;
+            formulaCtx.circleNames.push(`${loc}${ct}`);
+            const ctn = Number(cn);
+            let cmv = 1.0;
+            if (ct === '防御') cmv = (21 + ctn) / 20;
+            else if ((ct === '物理' && mCat === 'physical') || (ct === '特殊' && mCat === 'special')) cmv = (11 + ctn) / 10;
+            formulaCtx.circleMults.push(cmv);
+        }
+        if (type === 'Break') {
+            SIDE_KEYS.forEach(c => { if (box[c]) formulaCtx.breakActive[c] = true; });
+        }
+        if (type === 'NextGuard') {
+            SIDE_KEYS.forEach(c => { if (box[c]) formulaCtx.ngActive[c] = true; });
+        }
+        if (type === 'Other') {
+            SIDE_KEYS.forEach(c => { const v = box[c]; if (v !== undefined && v !== '' && Number(v) !== 1) formulaCtx.otherVals[c] = Number(v); });
+        }
+    });
+
+    row.skills.forEach(sk => {
+        const name = sk.name || 'スキル';
+        if (Number(sk.value) !== 0) formulaCtx.skillNames.push(`${name}+${sk.value}%`);
+    });
+
+    state.masterOptions.forEach(mo => {
+        const type = mo.type;
+        const n = Number(mo.n);
+        const reg = mo.region || '';
+        let kind;
+        if (type === 'MP') kind = reg + mo.kind;
+        else if (type === 'MEX') kind = reg + 'マスターEX';
+        else if (type === 'Myth') kind = reg + '神話';
+        else kind = reg + 'カリスマ';
+        const mpKind = type === 'MP' ? mo.kind : '';
+        let val;
+        if (type === 'MP') {
+            if (mpKind === '先導') val = [0,10,20,30][n];
+            else val = [0,20,35,50][n]; // 闘志・信念
+        } else if (type === 'MEX') val = [0,20,35,50][n];
+        else if (type === 'Myth') val = [0,10,20,30][n];
+        else val = [0,10,15,20][n];
+
+        const mpApplies = type !== 'MP' || (
+            !isB && !isBD &&
+            (mpKind === '先導' || (mpKind === '闘志' && mCat === 'physical') || (mpKind === '信念' && mCat === 'special'))
+        );
+        const mexApplies = type !== 'MEX' || !isBD;
+        const mythApplies = (type !== 'Myth' && type !== 'Charisma') || (!isB && !isBD);
+        if (val && mpApplies && mexApplies && mythApplies)
+            formulaCtx.masterNames.push(`${kind}+${val}%`);
+    });
+
+    // 敵ランク・敵実数値の取得
+    SIDE_KEYS.forEach(c => {
+        formulaCtx.eRankRaw[c] = Number(row.enRank[c]);
+        formulaCtx.eDef[c] = Number(state.enemies[c][row.enStatType]);
+    });
+
+    const tgs = { l: row.targets.l, c: row.targets.c, r: row.targets.r };
+    const tCnt = SIDE_KEYS.filter(c => tgs[c]).length;
+    const noSplit = !!row.noSplit;
+    const split = (tCnt > 1 && !noSplit) ? (tCnt === 2 ? 2/3 : 0.5) : 1;
+    formulaCtx.split = split;
+    formulaCtx.tCnt = tCnt;
+
+    const resByTarget = { l: null, c: null, r: null }; // null = 表示しない（"0"）
+    const addToTotals = { Left: 0, Center: 0, Right: 0 };
+
+    SIDE_KEYS.forEach(c => {
+        if (!tgs[c]) { resByTarget[c] = null; return; }
+
+        let sideMulti = 1.0;
+        // 急所判定
+        const isCrit = row.crit[c];
+        if (isCrit) sideMulti *= 1.5;
+
+        let atkRank = Number(row.myRank);
+        if (isCrit && atkRank < 0) atkRank = 0;
+
+        const fAtk = Math.floor(baseStat * RANK_TABLE[String(atkRank)]);
+
+        // 物理・特殊軽減（急所時は無視）
+        if (reduceStatActive && !isCrit) sideMulti *= (2/3);
+
+        // ブレイク状態
+        const breakBox = row.dynamicOptions.find(b => b.type === 'Break');
+        if (breakBox && breakBox[c]) sideMulti *= 1.5;
+
+        // 次回抜群（弱点時のみ）
+        if (superEffActive && row.weak[c]) sideMulti *= 1.5;
+
+        // 次回ダメ防御
+        const ngBox = row.dynamicOptions.find(b => b.type === 'NextGuard');
+        if (ngBox && ngBox[c]) sideMulti *= (isB || isBD ? 0.5 : 0);
+
+        // その他
+        const other = formulaCtx.otherVals[c];
+        sideMulti *= other;
+
+        const sideName = SIDE_NAME_MAP[c]; // 'Left'|'Center'|'Right'
+        const eDef = Number(state.enemies[c][row.enStatType]);
+        const eRes = Number(state.enemies[c][row.enStatType === 'def' ? 'resDef' : 'resSpdef']);
+        let effectiveERank = Number(row.enRank[c]);
+        if (isCrit && effectiveERank > 0) effectiveERank = 0;
+
+        let rMul;
+        if (effectiveERank >= 0) {
+            rMul = RANK_TABLE[String(effectiveERank)];
+        } else {
+            const absR = Math.abs(effectiveERank);
+            const b = absR * 10 + 100;
+            const reducedRes = absR * 10 * 0.1 * eRes;
+            rMul = eRes > 0 ? (b - reducedRes) / b : RANK_TABLE[String(effectiveERank)];
+        }
+        const fDef = Math.floor(eDef * rMul);
+
+        const resistMulti = {l:resistMulti_l, c:resistMulti_c, r:resistMulti_r}[c];
+        const reduceSkillMulti = {l:reduceSkillMulti_l, c:reduceSkillMulti_c, r:reduceSkillMulti_r}[c];
+        const baseDmgPart = fAtk * fBP * baseMulti * wtzMulti * resistMulti * circleMulti * otherMulti * reduceSkillMulti * (burnActive || 1.0) * split;
+        let dmg = Math.floor(baseDmgPart * sideMulti / fDef);
+        if (row.weak[c]) dmg *= 2;
+
+        const dmgAvg = Math.floor(dmg * 0.95);
+        resByTarget[c] = dmgAvg;
+        addToTotals[sideName] += dmgAvg;
+
+        formulaCtx.dmgResult[c] = Math.floor(dmg);
+        formulaCtx.fDef[c] = fDef;
+        formulaCtx.eRankMul[c] = rMul;
+        formulaCtx.critAtkRank[c] = atkRank;
+    });
+
+    return { resByTarget, formula: formulaCtx, addToTotals };
+}
+
+// 1つの enemy action row を計算する（calcAllEnemyActions内のループ部分を完全移植）
+// toxicStack はサイドごとの「もうどく」段数カウンタ（呼び出し元で順次更新される共有オブジェクト）
+// 戻り値:
+//   ctx: 計算式表示用コンテキスト（items=状態異常ダメージ, healItems=回復の内訳）
+//   netBySide: {l,c,r} 各サイドの最終HP変動量（正=ダメージ、負=回復）
+function calcEnemyActionRow(row, maxhp, toxicStack) {
+    // フォールバック：heal フィールドが無い古い形式のrowにも対応
+    if (!row.heal) row.heal = { l:0, c:0, r:0, bonus:{l:false,c:false,r:false} };
+    if (!row.heal.bonus) row.heal.bonus = { l:false, c:false, r:false };
+
+    const target = row.target; // l/c/r
+    const cat = row.category;  // normal/t/b/bd
+    const isNormal = cat === 'normal';
+    const isNormalOrT = cat === 'normal' || cat === 't';
+
+    const ctx = { target, cat, items: [], healItems: { l:[], c:[], r:[] } };
+    let totalDmg = 0;
+    const mhp = maxhp[target] || 0;
+
+    // バインド
+    if (row.bind.active && isNormal) {
+        const res = Number(row.bind.res) || 0;
+        const inc = Number(row.bind.inc) || 0;
+        const resFac = resistFactor(res);
+        const incFac = 1 + 0.1 * inc;
+        const dmg = Math.floor(mhp/8 * resFac * incFac);
+        totalDmg += dmg;
+        ctx.items.push({type:'バインド', baseFrac:'1/8', res, inc, resFactor:resFac, incFactor:incFac, dmg});
     }
 
-    function addMasterOption(type=null) {
-        const root = document.getElementById('master-opts-root');
-        const optType = type || document.getElementById('master-opt-select').value;
-        const box = document.createElement('div');
-        box.className = 'opt-box';
-        box.dataset.type = optType;
-        
-        let html = '';
-        const regOpt = regions.map(v=>`<option value="${v}">${v}</option>`).join('');
-        const numOpt = [1,2,3].map(v=>`<option value="${v}">${v}</option>`).join('');
+    // どく/もうどく
+    if (row.poison.active && isNormal) {
+        const ptype = row.poison.ptype;
+        const res = Number(row.poison.res) || 0;
+        const inc = Number(row.poison.inc) || 0;
+        const resFac = resistFactor(res);
+        const incFac = 1 + 0.1 * inc;
+        let baseFrac, baseVal;
+        if (ptype === 'poison') {
+            baseFrac = '1/4';
+            baseVal = 1/4;
+        } else {
+            toxicStack[target] = Math.min(8, toxicStack[target] + 1);
+            const n = toxicStack[target];
+            baseFrac = `${n}/8`;
+            baseVal = n/8;
+        }
+        const dmg = Math.floor(mhp * baseVal * resFac * incFac);
+        totalDmg += dmg;
+        ctx.items.push({type: ptype === 'poison' ? 'どく' : 'もうどく', baseFrac, res, inc, resFactor:resFac, incFactor:incFac, dmg});
+    }
 
-        if(optType === 'MP') {
-            html = `マスター: <select class="m-reg">${regOpt}</select>の<select class="m-kind" onchange="allCalculate()"><option value="先導">先導</option><option value="闘志">闘志</option><option value="信念">信念</option></select> タグ:<select class="m-n" onchange="allCalculate()">${numOpt}</select>人`;
-        } else if(optType === 'MEX') {
-            html = `マスターEX: <select class="m-reg">${regOpt}</select>の○○ タグ:<select class="m-n" onchange="allCalculate()">${numOpt}</select>人`;
-        } else if(optType === 'Myth') {
-            html = `神話: <select class="m-reg">${arceusTypes.map(v=>`<option value="${v}">${v}</option>`).join('')}</select>の神話 タグ:<select class="m-n" onchange="allCalculate()">${numOpt}</select>人`;
-        } else if(optType === 'Charisma') {
-            html = `カリスマ: <select class="m-reg">${types.map(v=>`<option value="${v}">${v}</option>`).join('')}</select>のカリスマ タグ:<select class="m-n" onchange="allCalculate()">${numOpt}</select>人`;
+    // やけど
+    if (row.burn.active && isNormal) {
+        const res = Number(row.burn.res) || 0;
+        const inc = Number(row.burn.inc) || 0;
+        const resFac = resistFactor(res);
+        const incFac = 1 + 0.1 * inc;
+        const dmg = Math.floor(mhp/8 * resFac * incFac);
+        totalDmg += dmg;
+        ctx.items.push({type:'やけど', baseFrac:'1/8', res, inc, resFactor:resFac, incFactor:incFac, dmg});
+    }
+
+    // 天候
+    if (row.weather.active && isNormalOrT) {
+        const dmg = Math.floor(mhp/32);
+        totalDmg += dmg;
+        ctx.items.push({type:'天候', baseFrac:'1/32', res:null, inc:null, resFactor:1, incFactor:1, dmg});
+    }
+
+    // ダメージの場
+    if (row.zone.active && isNormalOrT) {
+        const res = Number(row.zone.res) || 0;
+        const weak = !!row.zone.weak;
+        const typeResist = Number(row.zone.typeResist) || 0;
+        const resFac = resistFactor(res);
+        const weakFactor = weak ? 2 : 1;
+        const typeResistFactor = ZONE_TYPE_RESIST_TABLE[String(typeResist)];
+        const dmg = Math.floor(mhp/16 * resFac * weakFactor * typeResistFactor);
+        totalDmg += dmg;
+        ctx.items.push({type:'ダメージの場', baseFrac:'1/16', res, inc:null, resFactor:resFac, incFactor:null, weak, weakFactor, typeResist, typeResistFactor, dmg});
+    }
+
+    ctx.totalDmg = totalDmg;
+    ctx.maxhp = mhp;
+
+    // ── 回復処理 ──
+    // 各サイドのHP変動量（正=ダメージ、負=回復）。最初は状態異常ダメージのみ。
+    const netBySide = { l:0, c:0, r:0 };
+    SIDE_KEYS.forEach(c => { netBySide[c] = (c === target) ? totalDmg : 0; });
+
+    SIDE_KEYS.forEach(c => {
+        const sideMaxHp = maxhp[c] || 0;
+        let healAmount = 0;
+
+        // 1. 即時回復：回復量(%) × そのサイドの最大HP
+        const healPct = Number(row.heal[c]) || 0;
+        if (healPct > 0 && sideMaxHp > 0) {
+            const amt = Math.floor(sideMaxHp * (healPct / 100));
+            healAmount += amt;
+            ctx.healItems[c].push({ type:'回復', baseFrac: `${healPct}%`, amount: amt });
         }
 
-        box.innerHTML = `${html} <span class="opt-del" onclick="this.parentElement.remove(); allCalculate();">×</span>`;
-        root.appendChild(box);
-        allCalculate();
-    }
+        // 2. 回復付帯：①このサイドがチェック済み ②行動者位置と一致 ③通常技
+        if (row.heal.bonus[c] && c === target && isNormal && sideMaxHp > 0) {
+            const amt = Math.floor(sideMaxHp / 16);
+            healAmount += amt;
+            ctx.healItems[c].push({ type:'回復付帯', baseFrac:'1/16', amount: amt });
+        }
 
-    function addActionRow(copyData = null) {
-        const rowId = 'row-' + Date.now() + Math.random();
-        const div = document.createElement('div');
-        div.className = 'action-row';
-        div.id = rowId;
-        div.innerHTML = `
+        if (healAmount > 0) {
+            netBySide[c] -= healAmount;
+        }
+    });
+
+    ctx.netBySide = netBySide;
+
+    return { ctx, netBySide, target };
+}
+
+// state全体から derived を再生成する（render前に必ず呼ぶ）
+function recalc() {
+    const buddyOptions = deriveBuddyOptions();
+    const enemyIncreaseDefaults = deriveEnemyIncreaseDefaults();
+
+    const totals = { Left: 0, Center: 0, Right: 0 };
+    const actionResults = {};   // id -> {resByTarget, formula}
+    const enemyActionResults = {}; // id -> {ctx}
+
+    // --- 味方行動行の計算 ---
+    state.actionList.forEach(item => {
+        if (item.rowType !== 'action') return;
+        const row = item.data;
+        const result = calcActionRow(row, buddyOptions);
+        if (!result) {
+            actionResults[row.id] = null; // buddy未選択 = 表示更新なし（現行のreturn相当）
+            return;
+        }
+        actionResults[row.id] = { resByTarget: result.resByTarget, formula: result.formula };
+        SIDES.forEach(s => { totals[s] += result.addToTotals[s]; });
+    });
+
+    // --- 敵ステータスの最大HP取得 ---
+    const maxhp = {};
+    SIDE_KEYS.forEach(c => { maxhp[c] = state.enemies[c].maxHp != null && state.enemies[c].maxHp !== '' ? Number(state.enemies[c].maxHp) : 0; });
+
+    // --- 敵行動行の計算（順序依存：もうどくスタック） ---
+    const toxicStack = { l:0, c:0, r:0 };
+    const enemyTotals = { l:0, c:0, r:0 };
+    state.actionList.forEach(item => {
+        if (item.rowType !== 'enemy') return;
+        const row = item.data;
+        const { ctx, netBySide } = calcEnemyActionRow(row, maxhp, toxicStack);
+        enemyActionResults[row.id] = { ctx };
+        SIDE_KEYS.forEach(c => { enemyTotals[c] += netBySide[c]; });
+    });
+
+    // --- 合計（味方ダメージ + 敵定数ダメージ） ---
+    const sideKeyMap = { Left:'l', Center:'c', Right:'r' };
+    const totalsFinal = {};
+    SIDES.forEach(s => {
+        const c = sideKeyMap[s];
+        const combined = totals[s] + (enemyTotals[c] || 0);
+        const mhp = maxhp[c] || 0;
+        let dmgRatio = null, hpRemainRatio = null;
+        if (mhp > 0) {
+            dmgRatio = combined / mhp;
+            hpRemainRatio = Math.max(0, 1 - dmgRatio);
+        }
+        totalsFinal[s.toLowerCase()] = { totalDamage: combined, maxHp: mhp, dmgRatio, hpRemainRatio };
+    });
+
+    state.derived = {
+        buddyOptions,
+        enemyIncreaseDefaults,
+        actionResults,
+        enemyActionResults,
+        totals: totalsFinal
+    };
+}
+
+/* ============================================================
+ * actions オブジェクト
+ * 全てのユーザー操作はここを経由してstateを更新し、最後にrender()する。
+ * 「入力 -> state更新 -> recalc -> render」の単方向フローを徹底。
+ * ============================================================ */
+
+// state.actionList から id でアイテムを検索（{item, row, index}を返す）
+function findActionListItem(id) {
+    const index = state.actionList.findIndex(it => it.data.id === id);
+    if (index === -1) return null;
+    return { item: state.actionList[index], row: state.actionList[index].data, index };
+}
+
+// 新しいID生成（現行の Date.now()+Math.random() 形式を維持）
+function genId(prefix) {
+    return prefix + '-' + Date.now() + '-' + Math.random();
+}
+
+// オプションタイプごとの初期値生成（addOption相当の初期値部分）
+function createOptionDefault(type) {
+    const id = genId('opt');
+    switch (type) {
+        case 'WTZ':
+            return { id, type, value: 1.5 };
+        case 'Circle':
+            return { id, type, loc: REGIONS[0], n: 1, circleType: '物理' };
+        case 'Resist':
+            return { id, type, l: 1.3, c: 1.3, r: 1.3 }; // デフォルト'-1'(1.3倍)
+        case 'Break':
+            return { id, type, l: true, c: true, r: true };
+        case 'SuperEff':
+            return { id, type, active: true };
+        case 'ReduceStat':
+            return { id, type, active: true };
+        case 'NextGuard':
+            return { id, type, l: true, c: true, r: true };
+        case 'ReduceSkill':
+            return { id, type, l: true, c: true, r: true, value: 0.7 };
+        case 'Burn':
+            return { id, type, active: true };
+        case 'Other':
+            return { id, type, l: 1.0, c: 1.0, r: 1.0 };
+        default:
+            return null;
+    }
+}
+
+const actions = {
+
+    // ---- グローバル設定 ----
+    setGlobal(key, value) {
+        state.global[key] = value;
+        render();
+    },
+
+    // ---- 敵ステータス設定 ----
+    setEnemyField(side, field, value) {
+        const e = state.enemies[side];
+        if (field === 'maxHp') {
+            e.maxHp = value === '' ? null : Number(value);
+        } else if (field === 'resDef' || field === 'resSpdef') {
+            e[field] = Number(value);
+        } else {
+            e[field] = Number(value);
+        }
+        render();
+    },
+
+    setEnemyResistDefault(side, key, value) {
+        state.enemies[side].resistDefaults[key] = Number(value);
+        // 敵ステータスの耐性初期値が変更された時、該当する敵行動行
+        // (行動者=該当サイド)の耐性欄を一括更新（syncEaResistDefaults相当）
+        state.actionList.forEach(item => {
+            if (item.rowType !== 'enemy') return;
+            const row = item.data;
+            if (row.target === side) {
+                applyEaResistDefaultsToRow(row, side);
+            }
+        });
+        render();
+    },
+
+    // applyPreset相当（プリセット適用）
+    applyEnemyPreset(side, val) {
+        if (!val) return;
+        const e = state.enemies[side];
+        if (val === 'gymex5') {
+            e.def = 166;
+            e.spdef = 166;
+            e.resDef = 5;
+            e.resSpdef = 5;
+            // 最大HP：中央22,176,000、左右はその半分
+            e.maxHp = (side === 'c') ? 22176000 : 11088000;
+            // 耐性初期値：やけど・バインド・ダメージの場=9、どく=10
+            e.resistDefaults.bind = 9;
+            e.resistDefaults.burn = 9;
+            e.resistDefaults.zone = 9;
+            e.resistDefaults.poison = 10;
+            // 該当する敵行動行の耐性欄を一括更新
+            state.actionList.forEach(item => {
+                if (item.rowType !== 'enemy') return;
+                const row = item.data;
+                if (row.target === side) applyEaResistDefaultsToRow(row, side);
+            });
+            render();
+            return;
+        }
+        e.def = Number(val);
+        e.spdef = Number(val);
+        e.resDef = 5;
+        e.resSpdef = 5;
+        render();
+    },
+
+    // ---- 味方バディーズ設定 ----
+    setBuddyField(cardIdx, formIdx, field, value) {
+        const form = state.buddyCards[cardIdx].forms[formIdx];
+        if (field === 'name') form.name = value;
+        else form[field] = Number(value);
+        render();
+    },
+
+    setBuddyStat(cardIdx, formIdx, statType, subField, value) {
+        state.buddyCards[cardIdx].forms[formIdx][statType][subField] = Number(value);
+        render();
+    },
+
+    setBuddyEnemyInc(cardIdx, formIdx, key, value) {
+        state.buddyCards[cardIdx].forms[formIdx].enemyDmgIncrease[key] = Number(value);
+        // 味方の状態異常ダメージ増加パッシブが変更された時、
+        // 全ての敵行動行の増加欄を一括更新（syncEaIncreaseDefaults相当）
+        const defaults = deriveEnemyIncreaseDefaults();
+        state.actionList.forEach(item => {
+            if (item.rowType !== 'enemy') return;
+            const row = item.data;
+            row.bind.inc = defaults.bind;
+            row.poison.inc = defaults.poison;
+            row.burn.inc = defaults.burn;
+        });
+        render();
+    },
+
+    // addBuddyForm相当（+姿追加）
+    addBuddyForm(cardIdx) {
+        const card = state.buddyCards[cardIdx];
+        const existingForms = card.forms.length;
+        const mainName = card.forms[0].name || `バディーズ${cardIdx+1}`;
+        const autoName = `${mainName}-姿${existingForms + 1}`;
+        const last = card.forms[card.forms.length - 1];
+        // 直前の姿の値を引き継ぐ（bindInc等は0でリセット、現行コードと同様）
+        const vals = {
+            atkV: last.atk.value, atkB: last.atk.bsb, atkT: last.atk.team, atkE: last.atk.equip,
+            spV: last.spatk.value, spB: last.spatk.bsb, spT: last.spatk.team, spE: last.spatk.equip,
+            skP: last.skillMultiP, skB: last.skillMultiB,
+            bindInc: 0, poisonInc: 0, burnInc: 0
+        };
+        const newForm = createInitialBuddyForm(autoName, vals);
+        card.forms.push(newForm);
+        render();
+    },
+
+    removeBuddyForm(cardIdx, formIdx) {
+        state.buddyCards[cardIdx].forms.splice(formIdx, 1);
+        render();
+    },
+
+    // ---- 全体共通設定（マスターパッシブ等） ----
+    addMasterOption() {
+        const type = document.getElementById('master-opt-select').value;
+        let region, kind = null;
+        if (type === 'MP') { region = REGIONS[0]; kind = '先導'; }
+        else if (type === 'MEX') region = REGIONS[0];
+        else if (type === 'Myth') region = ARCEUS_TYPES[0];
+        else region = TYPES[0]; // Charisma
+
+        state.masterOptions.push({
+            id: genId('mopt'),
+            type, region, kind, n: 1
+        });
+        render();
+    },
+
+    removeMasterOption(idx) {
+        state.masterOptions.splice(idx, 1);
+        render();
+    },
+
+    setMasterOptionField(idx, field, value) {
+        const mo = state.masterOptions[idx];
+        if (field === 'n') mo.n = Number(value);
+        else mo[field] = value;
+        render();
+    },
+
+    // ---- 行動行：追加 ----
+    // State操作仕様1: 初期値を持つオブジェクトをactionListの末尾にpush
+    addActionRow() {
+        const row = createInitialActionRow();
+        // バディーズ名のデフォルトは「バディーズ1」（buddyCards[0]の本体名、
+        // 未入力なら派生名 "バディーズ1" にフォールバック）
+        row.buddyName = deriveBuddyOptions()[0]?.name || 'バディーズ1';
+        state.actionList.push({ rowType: 'action', data: row });
+        render();
+    },
+
+    addEnemyActionRow() {
+        const row = createInitialEnemyActionRow();
+
+        // デフォルト値の設定（行動者デフォルト='c'）
+        applyEaResistDefaultsToRow(row, 'c');
+
+        // ダメージ増加: 全味方バディーズの設定値の合計を初期値として使用
+        const defaults = deriveEnemyIncreaseDefaults();
+        row.bind.inc = defaults.bind;
+        row.poison.inc = defaults.poison;
+        row.burn.inc = defaults.burn;
+
+        // BC: 直前の敵行動行のBC(行動後)を継承し、1ずつ減算（0の次は6）
+        const enemyRows = state.actionList.filter(it => it.rowType === 'enemy');
+        const prevRow = enemyRows.length > 0 ? enemyRows[enemyRows.length - 1].data : null;
+        let beforeBC = 6;
+        if (prevRow) {
+            beforeBC = prevRow.bcAfter !== '' && prevRow.bcAfter != null ? Number(prevRow.bcAfter) : 6;
+        }
+        row.bcBefore = beforeBC;
+        row.bcAfter = ((beforeBC - 1) % 7 + 7) % 7;
+
+        state.actionList.push({ rowType: 'enemy', data: row });
+        render();
+    },
+
+    // ---- 行動行：削除 ----
+    // State操作仕様2: 配列からfilterで除外
+    removeRow(id) {
+        state.actionList = state.actionList.filter(it => it.data.id !== id);
+        render();
+    },
+
+    // ---- 行動行：上下移動 ----
+    // State操作仕様4: 配列内インデックスを直接入れ替える
+    moveRow(id, mode) {
+        const found = findActionListItem(id);
+        if (!found) return;
+        const { index } = found;
+        const arr = state.actionList;
+
+        if (mode === 'top') {
+            const [el] = arr.splice(index, 1);
+            arr.unshift(el);
+        } else if (mode === 'bottom') {
+            const [el] = arr.splice(index, 1);
+            arr.push(el);
+        } else if (mode === 'up') {
+            if (index > 0) {
+                [arr[index-1], arr[index]] = [arr[index], arr[index-1]];
+            }
+        } else if (mode === 'down') {
+            if (index < arr.length - 1) {
+                [arr[index], arr[index+1]] = [arr[index+1], arr[index]];
+            }
+        }
+        render();
+    },
+
+    // ---- 行動行：コピペ（複製） ----
+    // State操作仕様3: ディープコピーし、新しいIDを再採番して末尾に追加
+    copyActionRow(id) {
+        const found = findActionListItem(id);
+        if (!found) return;
+        const original = found.row;
+
+        const copy = JSON.parse(JSON.stringify(original));
+        copy.id = genId('row');
+        // dynamicOptionsとskillsの各要素にも新しいidを再採番
+        copy.dynamicOptions.forEach(box => { box.id = genId('opt'); });
+        copy.skills.forEach(sk => { sk.id = genId('skill'); });
+        // formulaOpenは複製時リセット（現行コードもtoggle状態は個別管理）
+        copy.formulaOpen = false;
+
+        state.actionList.push({ rowType: 'action', data: copy });
+        render();
+    },
+
+    copyEnemyActionRow(id) {
+        const found = findActionListItem(id);
+        if (!found) return;
+        const original = found.row;
+
+        const copy = JSON.parse(JSON.stringify(original));
+        copy.id = genId('earow');
+        copy.formulaOpen = false;
+
+        state.actionList.push({ rowType: 'enemy', data: copy });
+        render();
+    },
+
+    // ---- 味方行動行：各フィールド更新 ----
+    setActionField(id, field, value) {
+        const { row } = findActionListItem(id);
+        const numericFields = ['bp','bsbBp','effMul','boost','volt','myRank'];
+        if (field === 'myRank') {
+            row.myRank = Number(value);
+        } else if (numericFields.includes(field)) {
+            row[field] = Number(value);
+        } else {
+            row[field] = value;
+        }
+        render();
+    },
+
+    // syncMoveType相当：物理/特殊技の変更で自分ステ・敵ステも連動
+    syncMoveType(id, value) {
+        const { row } = findActionListItem(id);
+        row.moveCat = value;
+        const isPhys = value === 'physical';
+        row.myStatType = isPhys ? 'atk' : 'spatk';
+        row.enStatType = isPhys ? 'def' : 'spdef';
+        render();
+    },
+
+    setEnRank(id, side, value) {
+        const { row } = findActionListItem(id);
+        row.enRank[side] = Number(value);
+        render();
+    },
+
+    // handleTargetChange相当：ターゲットチェックボックスの変更
+    // noSplitはstateで常時保持されるため、DOM側の特殊な復元ロジックは不要
+    setTarget(id, side, checked) {
+        const { row } = findActionListItem(id);
+        row.targets[side] = checked;
+        render();
+    },
+
+    setNoSplit(id, checked) {
+        const { row } = findActionListItem(id);
+        row.noSplit = checked;
+        render();
+    },
+
+    setWeak(id, side, checked) {
+        const { row } = findActionListItem(id);
+        row.weak[side] = checked;
+        render();
+    },
+
+    setCrit(id, side, checked) {
+        const { row } = findActionListItem(id);
+        row.crit[side] = checked;
+        render();
+    },
+
+    // ---- スキル（上昇スキル）----
+    addSkill(id) {
+        const { row } = findActionListItem(id);
+        row.skills.push({ id: genId('skill'), name: '', value: 0 });
+        render();
+    },
+
+    removeSkill(id, skillId) {
+        const { row } = findActionListItem(id);
+        row.skills = row.skills.filter(sk => sk.id !== skillId);
+        render();
+    },
+
+    setSkillField(id, skillId, field, value) {
+        const { row } = findActionListItem(id);
+        const sk = row.skills.find(s => s.id === skillId);
+        if (field === 'value') sk.value = Number(value);
+        else sk[field] = value;
+        render();
+    },
+
+    // ---- 二段目オプション（dynamic-opts） ----
+    addOption(id, type) {
+        const { row } = findActionListItem(id);
+
+        if (type === 'Comment') {
+            // 既に存在するなら追加しない（現行コードと同様）
+            if (row.comment !== null) return;
+            row.comment = '';
+            render();
+            return;
+        }
+
+        const box = createOptionDefault(type);
+        if (!box) return;
+        row.dynamicOptions.push(box);
+        render();
+    },
+
+    removeOption(id, optId) {
+        const { row } = findActionListItem(id);
+        row.dynamicOptions = row.dynamicOptions.filter(b => b.id !== optId);
+        render();
+    },
+
+    setOptionField(id, optId, field, value) {
+        const { row } = findActionListItem(id);
+        const box = row.dynamicOptions.find(b => b.id === optId);
+        const numericFields = {
+            WTZ: ['value'],
+            Circle: ['n'],
+            Resist: ['l','c','r'],
+            ReduceSkill: ['value'],
+            Other: ['l','c','r']
+        };
+        const boolFields = {
+            Break: ['l','c','r'],
+            SuperEff: ['active'],
+            ReduceStat: ['active'],
+            NextGuard: ['l','c','r'],
+            ReduceSkill: ['l','c','r'],
+            Burn: ['active']
+        };
+        if (boolFields[box.type] && boolFields[box.type].includes(field)) {
+            box[field] = !!value;
+        } else if (numericFields[box.type] && numericFields[box.type].includes(field)) {
+            box[field] = Number(value);
+        } else {
+            box[field] = value;
+        }
+        render();
+    },
+
+    // ---- コメント ----
+    setComment(id, value) {
+        const { row } = findActionListItem(id);
+        row.comment = value;
+        render();
+    },
+
+    removeComment(id) {
+        const { row } = findActionListItem(id);
+        row.comment = null;
+        render();
+    },
+
+    // ---- ダメージ計算式の開閉 ----
+    toggleFormula(id) {
+        const { row } = findActionListItem(id);
+        row.formulaOpen = !row.formulaOpen;
+        render();
+    },
+
+    // ---- 敵行動行：各フィールド更新 ----
+    setEnemyActionField(id, field, value) {
+        const { row } = findActionListItem(id);
+        const numericFields = ['bcBefore','bcAfter'];
+        if (numericFields.includes(field)) row[field] = Number(value);
+        else row[field] = value;
+        render();
+    },
+
+    // onEaTargetChange相当：行動者変更時、耐性初期値を自動入力
+    setEaTarget(id, side) {
+        const { row } = findActionListItem(id);
+        row.target = side;
+        applyEaResistDefaultsToRow(row, side);
+        render();
+    },
+
+    // バインド/どく/やけど/天候/ダメージの場の各サブフィールド更新
+    setEaSubField(id, group, field, value) {
+        const { row } = findActionListItem(id);
+        const numericFields = ['res','inc','typeResist'];
+        if (numericFields.includes(field)) row[group][field] = Number(value);
+        else if (field === 'active' || field === 'weak') row[group][field] = !!value;
+        else row[group][field] = value;
+        render();
+    },
+
+    // ---- 回復（即時回復）----
+    setEaHeal(id, side, value) {
+        const { row } = findActionListItem(id);
+        let v = Number(value);
+        if (isNaN(v)) v = 0;
+        v = Math.max(0, Math.min(100, v));
+        row.heal[side] = v;
+        render();
+    },
+
+    // ---- 回復付帯 ----
+    setEaHealBonus(id, side, checked) {
+        const { row } = findActionListItem(id);
+        row.heal.bonus[side] = !!checked;
+        render();
+    }
+};
+
+// applyEaResistDefaults相当：敵ステータスの耐性初期値を敵行動行に反映
+function applyEaResistDefaultsToRow(row, side) {
+    const d = state.enemies[side].resistDefaults;
+    row.bind.res = d.bind;
+    row.poison.res = d.poison;
+    row.burn.res = d.burn;
+    row.zone.res = d.zone;
+}
+
+window.onload = init;
+
+/* ============================================================
+ * buildActionRowHtml（味方行動行のHTML生成）
+ * 現行 addActionRow のテンプレートを state バインディングに変換。
+ * すべての onChange/onInput は actions.* を呼び、
+ * 「state更新 -> render()」の単方向フローに従う。
+ * ============================================================ */
+function rankOptionsHtml(currentVal) {
+    return RANK_VALUES.map(r =>
+        `<option value="${r}" ${String(currentVal)===r?'selected':''}>${r>0?'+'+r:r}</option>`
+    ).join('');
+}
+
+function buildActionRowHtml(row, index) {
+    const id = row.id;
+    const result = state.derived.actionResults[id]; // null可能（buddy未選択）
+
+    // --- バディーズ選択肢 ---
+    const buddyOptionsHtml = `<option value="">(選択)</option>` + state.derived.buddyOptions.map(b =>
+        `<option value="${escapeAttr(b.name)}" ${b.name===row.buddyName?'selected':''}>${escapeAttr(b.name)}</option>`
+    ).join('');
+
+    // --- スキルリスト ---
+    const skillsHtml = row.skills.map(sk => `
+        <div style="display:flex; margin-bottom:2px;">
+            <input type="text" value="${escapeAttr(sk.name)}" placeholder="スキル" style="width:60%" oninput="actions.setSkillField('${id}','${sk.id}','name',this.value)">
+            <input type="number" value="${sk.value}" style="width:30%" oninput="actions.setSkillField('${id}','${sk.id}','value',this.value)">% <span style="cursor:pointer" onclick="actions.removeSkill('${id}','${sk.id}')">×</span>
+        </div>`).join('');
+
+    // --- 二段目オプション（dynamic-opts） ---
+    const dynamicOptsHtml = row.dynamicOptions.map(box => buildOptionBoxHtml(id, box)).join('');
+
+    // --- no-split-zone（ターゲット2体以上の時のみ表示） ---
+    const tCnt = [row.targets.l, row.targets.c, row.targets.r].filter(v=>v).length;
+    const noSplitZoneHtml = tCnt >= 2
+        ? `<label><input type="checkbox" ${row.noSplit?'checked':''} onchange="actions.setNoSplit('${id}',this.checked)"> 分散なし</label>`
+        : '';
+
+    // --- ダメージ結果表示 ---
+    const resVal = (c) => {
+        if (!result) return '0';
+        const v = result.resByTarget[c];
+        return v === null || v === undefined ? '0' : v.toLocaleString();
+    };
+
+    // --- ダメージ計算式 ---
+    const formulaHtml = buildFormulaHtml(row, result ? result.formula : null);
+
+    // --- コメント行 ---
+    const commentHtml = row.comment !== null
+        ? `<input type="text" class="comment-text" placeholder="コメント" value="${escapeAttr(row.comment)}" style="width:100%; margin-top:5px; box-sizing:border-box;" oninput="actions.setComment('${id}',this.value)">
+           <span style="cursor:pointer; margin-left:5px;" onclick="actions.removeComment('${id}')">×</span>`
+        : '';
+
+    return `
+        <div class="action-row" id="${id}">
             <div class="row-upper">
                 <div class="col-op">
                     <div style="display:flex; gap:2px; margin-bottom:3px;">
-                        <button class="btn-op" onclick="moveRow('${rowId}','top')">最上</button><button class="btn-op" onclick="moveRow('${rowId}','up')">上</button>
-                        <button class="btn-op" onclick="moveRow('${rowId}','down')">下</button><button class="btn-op" onclick="moveRow('${rowId}','bottom')">最下</button>
+                        <button class="btn-op" onclick="actions.moveRow('${id}','top')">最上</button><button class="btn-op" onclick="actions.moveRow('${id}','up')">上</button>
+                        <button class="btn-op" onclick="actions.moveRow('${id}','down')">下</button><button class="btn-op" onclick="actions.moveRow('${id}','bottom')">最下</button>
                     </div>
-                    <button class="btn-op" style="width:100%; background:#2ecc71; color:white; border:none;" onclick="copyRow('${rowId}')">コピペ</button>
+                    <button class="btn-op" style="width:100%; background:#2ecc71; color:white; border:none;" onclick="actions.copyActionRow('${id}')">コピペ</button>
                 </div>
-                <div class="col-buddy"><select class="buddy-select" style="width:100%" onchange="allCalculate()"></select></div>
+                <div class="col-buddy"><select style="width:100%" onchange="actions.setActionField('${id}','buddyName',this.value)">${buddyOptionsHtml}</select></div>
                 <div class="col-move">
-                    <input type="text" class="move-name" placeholder="技名" style="width:100%; margin-bottom:2px;" oninput="allCalculate()">
-                    <select class="move-cat" style="width:100%" onchange="syncMoveType(this)"><option value="physical">物理技</option><option value="special">特殊技</option></select>
+                    <input type="text" value="${escapeAttr(row.moveName)}" placeholder="技名" style="width:100%; margin-bottom:2px;" oninput="actions.setActionField('${id}','moveName',this.value)">
+                    <select style="width:100%" onchange="actions.syncMoveType('${id}',this.value)">
+                        <option value="physical" ${row.moveCat==='physical'?'selected':''}>物理技</option>
+                        <option value="special" ${row.moveCat==='special'?'selected':''}>特殊技</option>
+                    </select>
                     <div style="display:flex; gap:4px; font-size:9px;">
-                        <label>
-                            <input type="radio" name="movetype-${rowId}"
-                                class="move-type"
-                                value="normal"
-                                checked
-                                onchange="allCalculate()">
-                            通常技
-                        </label>
-
-                        <label>
-                            <input type="radio"
-                                name="movetype-${rowId}"
-                                class="move-type"
-                                value="b"
-                                onchange="allCalculate()">
-                            B技
-                        </label>
-
-                        <label>
-                            <input type="radio"
-                                name="movetype-${rowId}"
-                                class="move-type"
-                                value="bd"
-                                onchange="allCalculate()">
-                            BD技
-                        </label>
+                        <label><input type="radio" name="movetype-${id}" value="normal" ${row.moveType==='normal'?'checked':''} onchange="actions.setActionField('${id}','moveType','normal')"> 通常技</label>
+                        <label><input type="radio" name="movetype-${id}" value="b" ${row.moveType==='b'?'checked':''} onchange="actions.setActionField('${id}','moveType','b')"> B技</label>
+                        <label><input type="radio" name="movetype-${id}" value="bd" ${row.moveType==='bd'?'checked':''} onchange="actions.setActionField('${id}','moveType','bd')"> BD技</label>
                     </div>
-                    </div>
+                </div>
                 <div class="col-mystat">
-                    <select class="my-stat-type" onchange="allCalculate()" style="width:100%"><option value="atk">攻撃</option><option value="spatk">特攻</option></select>
-                    <select class="my-rank" onchange="allCalculate()" style="width:100%">${rankOptions}</select>
+                    <select style="width:100%" onchange="actions.setActionField('${id}','myStatType',this.value)">
+                        <option value="atk" ${row.myStatType==='atk'?'selected':''}>攻撃</option>
+                        <option value="spatk" ${row.myStatType==='spatk'?'selected':''}>特攻</option>
+                    </select>
+                    <select style="width:100%" onchange="actions.setActionField('${id}','myRank',this.value)">${rankOptionsHtml(row.myRank)}</select>
                 </div>
                 <div class="col-enstat">
-                    <select class="en-stat-type" onchange="allCalculate()" style="width:100%"><option value="def">防御</option><option value="spdef">特防</option></select>
+                    <select style="width:100%" onchange="actions.setActionField('${id}','enStatType',this.value)">
+                        <option value="def" ${row.enStatType==='def'?'selected':''}>防御</option>
+                        <option value="spdef" ${row.enStatType==='spdef'?'selected':''}>特防</option>
+                    </select>
                     <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:2px; text-align:center; margin-top:2px;">
                         <span style="font-size:9px;color:#999;">左</span><span style="font-size:9px;color:#999;">中</span><span style="font-size:9px;color:#999;">右</span>
-                        <select class="en-rank en-rank-l" onchange="allCalculate()" style="width:100%; font-size:10px;">${rankOptions}</select>
-                        <select class="en-rank en-rank-c" onchange="allCalculate()" style="width:100%; font-size:10px;">${rankOptions}</select>
-                        <select class="en-rank en-rank-r" onchange="allCalculate()" style="width:100%; font-size:10px;">${rankOptions}</select>
+                        <select style="width:100%; font-size:10px;" onchange="actions.setEnRank('${id}','l',this.value)">${rankOptionsHtml(row.enRank.l)}</select>
+                        <select style="width:100%; font-size:10px;" onchange="actions.setEnRank('${id}','c',this.value)">${rankOptionsHtml(row.enRank.c)}</select>
+                        <select style="width:100%; font-size:10px;" onchange="actions.setEnRank('${id}','r',this.value)">${rankOptionsHtml(row.enRank.r)}</select>
                     </div>
                 </div>
                 <div class="col-bp">
-                    <input type="number" class="bp" value="200" style="width:100%" oninput="allCalculate()">
-                    <div style="font-size:9px; color:#999; margin-top:2px;">+BSB:<input type="number" class="bsb-bp" value="0" style="width:35px" oninput="allCalculate()"></div>
+                    <input type="number" value="${row.bp}" style="width:100%" oninput="actions.setActionField('${id}','bp',this.value)">
+                    <div style="font-size:9px; color:#999; margin-top:2px;">+BSB:<input type="number" value="${row.bsbBp}" style="width:35px" oninput="actions.setActionField('${id}','bsbBp',this.value)"></div>
                 </div>
                 <div class="col-effect">
-                    <input type="number" class="eff-mul" value="100" style="width:100%" oninput="allCalculate()">
+                    <input type="number" value="${row.effMul}" style="width:100%" oninput="actions.setActionField('${id}','effMul',this.value)">
                     <div style="text-align:center; color:#999;">%</div>
                 </div>
                 <div class="col-targets">
                     <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:2px; text-align:center;">
                         <span>左</span><span>中</span><span>右</span>
-                        <input type="checkbox" class="t-l" onchange="handleTargetChange(this)">
-                        <input type="checkbox" class="t-c" onchange="handleTargetChange(this)" checked>
-                        <input type="checkbox" class="t-r" onchange="handleTargetChange(this)">
+                        <input type="checkbox" ${row.targets.l?'checked':''} onchange="actions.setTarget('${id}','l',this.checked)">
+                        <input type="checkbox" ${row.targets.c?'checked':''} onchange="actions.setTarget('${id}','c',this.checked)">
+                        <input type="checkbox" ${row.targets.r?'checked':''} onchange="actions.setTarget('${id}','r',this.checked)">
                     </div>
-                    <div class="no-split-zone" style="height:15px; text-align:center;"></div>
+                    <div style="height:15px; text-align:center;">${noSplitZoneHtml}</div>
                     <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:2px; text-align:center;">
                         <span>弱点</span><span>弱点</span><span>弱点</span>
-                        <input type="checkbox" class="w-l" onchange="allCalculate()">
-                        <input type="checkbox" class="w-c" onchange="allCalculate()">
-                        <input type="checkbox" class="w-r" onchange="allCalculate()">
+                        <input type="checkbox" ${row.weak.l?'checked':''} onchange="actions.setWeak('${id}','l',this.checked)">
+                        <input type="checkbox" ${row.weak.c?'checked':''} onchange="actions.setWeak('${id}','c',this.checked)">
+                        <input type="checkbox" ${row.weak.r?'checked':''} onchange="actions.setWeak('${id}','r',this.checked)">
                     </div>
                 </div>
-                <div class="col-boost"><select class="boost" onchange="allCalculate()" style="width:100%">${[0,1,2,3,4,5,6,7,8,9,10].map(v=>`<option value="${v}">${v}</option>`)}</select></div>
-                <div class="col-skills"><div class="skill-list"></div><button class="btn-op" onclick="addSkill(this)" style="width:100%">+スキル</button></div>
+                <div class="col-boost"><select style="width:100%" onchange="actions.setActionField('${id}','boost',this.value)">${[0,1,2,3,4,5,6,7,8,9,10].map(v=>`<option value="${v}" ${Number(row.boost)===v?'selected':''}>${v}</option>`).join('')}</select></div>
+                <div class="col-skills">
+                    <div class="skill-list">${skillsHtml}</div>
+                    <button class="btn-op" onclick="actions.addSkill('${id}')" style="width:100%">+スキル</button>
+                </div>
                 <div class="col-res">
                     <table class="res-table">
                         <tr><th>左</th><th>中</th><th>右</th></tr>
-                        <tr><td class="res-l">0</td><td class="res-c">0</td><td class="res-r">0</td></tr>
+                        <tr><td>${resVal('l')}</td><td>${resVal('c')}</td><td>${resVal('r')}</td></tr>
                     </table>
                 </div>
-                <div class="col-delete"><button class="btn-del-row" onclick="document.getElementById('${rowId}').remove(); allCalculate();">×</button></div>
+                <div class="col-delete"><button class="btn-del-row" onclick="actions.removeRow('${id}')">×</button></div>
             </div>
             <div class="row-lower">
-                <select class="opt-select"><option value="WTZ">WTZ</option><option value="Circle">サークル</option><option value="Resist">タイプ抵抗</option><option value="Break">ブレイク状態</option><option value="SuperEff">次回抜群</option><option value="ReduceStat">物理/特殊軽減</option><option value="NextGuard">次回ダメ防御</option><option value="ReduceSkill">タイプガード</option><option value="Burn">火傷</option><option value="Other">その他</option><option value="Comment">コメント</option></select>
-                <button class="btn-add" style="background:#3498db; color:white; border:none; border-radius:3px; cursor:pointer;" onclick="addOption('${rowId}')">追加</button>
-                <div class="opt-box permanent">急所 左:<input type="checkbox" class="crit-l" checked onchange="allCalculate()"> 中:<input type="checkbox" class="crit-c" checked onchange="allCalculate()"> 右:<input type="checkbox" class="crit-r" checked onchange="allCalculate()"></div>
-                <div class="opt-box permanent">ボルテージ <input type="number" class="volt-val" value="0" style="width:35px" oninput="allCalculate()"></div>
-                <div class="dynamic-opts" style="display:flex; flex-wrap:wrap; gap:8px;"></div><br>
+                <select class="opt-select" id="opt-select-${id}">
+                    <option value="WTZ">WTZ</option><option value="Circle">サークル</option><option value="Resist">タイプ抵抗</option>
+                    <option value="Break">ブレイク状態</option><option value="SuperEff">次回抜群</option><option value="ReduceStat">物理/特殊軽減</option>
+                    <option value="NextGuard">次回ダメ防御</option><option value="ReduceSkill">タイプガード</option><option value="Burn">火傷</option>
+                    <option value="Other">その他</option><option value="Comment">コメント</option>
+                </select>
+                <button class="btn-add" style="background:#3498db; color:white; border:none; border-radius:3px; cursor:pointer;" onclick="actions.addOption('${id}', document.getElementById('opt-select-${id}').value)">追加</button>
+                <div class="opt-box permanent">急所 左:<input type="checkbox" ${row.crit.l?'checked':''} onchange="actions.setCrit('${id}','l',this.checked)"> 中:<input type="checkbox" ${row.crit.c?'checked':''} onchange="actions.setCrit('${id}','c',this.checked)"> 右:<input type="checkbox" ${row.crit.r?'checked':''} onchange="actions.setCrit('${id}','r',this.checked)"></div>
+                <div class="opt-box permanent">ボルテージ <input type="number" value="${row.volt}" style="width:35px" oninput="actions.setActionField('${id}','volt',this.value)"></div>
+                <div class="dynamic-opts" style="display:flex; flex-wrap:wrap; gap:8px;">${dynamicOptsHtml}</div><br>
             </div>
-            <div class="formula-row"></div>
-            <div class="comment-row"></div>
-        `;
-        document.getElementById('action-list').appendChild(div);
-        updateBuddyList();
-        if(copyData) restoreRowData(rowId, copyData);
+            <div class="formula-row">${formulaHtml}</div>
+            <div class="comment-row">${commentHtml}</div>
+        </div>`;
+}
+
+// 二段目オプション(opt-box)のHTML生成。current値はstateの該当オブジェクトから取得。
+function buildOptionBoxHtml(rowId, box) {
+    const id = box.id;
+    let html = '';
+    const type = box.type;
+
+    if (type === 'WTZ') {
+        html = `WTZ: <select onchange="actions.setOptionField('${rowId}','${id}','value',this.value)">
+            <option value="1.5" ${Number(box.value)===1.5?'selected':''}>WTZ</option>
+            <option value="3.0" ${Number(box.value)===3.0?'selected':''}>EXWTZ</option>
+        </select>`;
+    } else if (type === 'Circle') {
+        html = `サークル: <select onchange="actions.setOptionField('${rowId}','${id}','loc',this.value)">${REGIONS.map(v=>`<option value="${v}" ${box.loc===v?'selected':''}>${v}</option>`).join('')}</select>
+            <select onchange="actions.setOptionField('${rowId}','${id}','n',this.value)">${[1,2,3].map(v=>`<option value="${v}" ${Number(box.n)===v?'selected':''}>${v}</option>`).join('')}</select>人
+            <select onchange="actions.setOptionField('${rowId}','${id}','circleType',this.value)">
+                <option value="物理" ${box.circleType==='物理'?'selected':''}>物理</option>
+                <option value="特殊" ${box.circleType==='特殊'?'selected':''}>特殊</option>
+                <option value="防御" ${box.circleType==='防御'?'selected':''}>防御</option>
+            </select>`;
+    } else if (type === 'Resist') {
+        const ro = (cur) => RESIST_OPTIONS.map(o => `<option value="${o.value}" ${Number(cur)===o.value?'selected':''}>${o.label}</option>`).join('');
+        html = `抵抗 <span style="font-size:9px;color:#999;">左</span><select onchange="actions.setOptionField('${rowId}','${id}','l',this.value)">${ro(box.l)}</select>
+            <span style="font-size:9px;color:#999;">中</span><select onchange="actions.setOptionField('${rowId}','${id}','c',this.value)">${ro(box.c)}</select>
+            <span style="font-size:9px;color:#999;">右</span><select onchange="actions.setOptionField('${rowId}','${id}','r',this.value)">${ro(box.r)}</select>`;
+    } else if (type === 'Break') {
+        html = `ブレイク状態 左:<input type="checkbox" ${box.l?'checked':''} onchange="actions.setOptionField('${rowId}','${id}','l',this.checked)"> 中:<input type="checkbox" ${box.c?'checked':''} onchange="actions.setOptionField('${rowId}','${id}','c',this.checked)"> 右:<input type="checkbox" ${box.r?'checked':''} onchange="actions.setOptionField('${rowId}','${id}','r',this.checked)">`;
+    } else if (type === 'SuperEff') {
+        html = `次回抜群 <input type="checkbox" ${box.active?'checked':''} onchange="actions.setOptionField('${rowId}','${id}','active',this.checked)">`;
+    } else if (type === 'ReduceStat') {
+        html = `軽減状態 <input type="checkbox" ${box.active?'checked':''} onchange="actions.setOptionField('${rowId}','${id}','active',this.checked)">`;
+    } else if (type === 'NextGuard') {
+        html = `ダメ防御 左:<input type="checkbox" ${box.l?'checked':''} onchange="actions.setOptionField('${rowId}','${id}','l',this.checked)"> 中:<input type="checkbox" ${box.c?'checked':''} onchange="actions.setOptionField('${rowId}','${id}','c',this.checked)"> 右:<input type="checkbox" ${box.r?'checked':''} onchange="actions.setOptionField('${rowId}','${id}','r',this.checked)">`;
+    } else if (type === 'ReduceSkill') {
+        html = `タイプガード <span style="font-size:9px;color:#999;">左</span><input type="checkbox" ${box.l?'checked':''} onchange="actions.setOptionField('${rowId}','${id}','l',this.checked)">
+            <span style="font-size:9px;color:#999;">中</span><input type="checkbox" ${box.c?'checked':''} onchange="actions.setOptionField('${rowId}','${id}','c',this.checked)">
+            <span style="font-size:9px;color:#999;">右</span><input type="checkbox" ${box.r?'checked':''} onchange="actions.setOptionField('${rowId}','${id}','r',this.checked)">
+            <select onchange="actions.setOptionField('${rowId}','${id}','value',this.value)"><option value="0.7" ${Number(box.value)===0.7?'selected':''}>0.7倍</option></select>`;
+    } else if (type === 'Burn') {
+        html = `火傷 <input type="checkbox" ${box.active?'checked':''} onchange="actions.setOptionField('${rowId}','${id}','active',this.checked)">`;
+    } else if (type === 'Other') {
+        html = `その他 左:<input type="number" value="${box.l}" step="0.1" style="width:40px" oninput="actions.setOptionField('${rowId}','${id}','l',this.value)">倍
+            中:<input type="number" value="${box.c}" step="0.1" style="width:40px" oninput="actions.setOptionField('${rowId}','${id}','c',this.value)">倍
+            右:<input type="number" value="${box.r}" step="0.1" style="width:40px" oninput="actions.setOptionField('${rowId}','${id}','r',this.value)">倍`;
     }
 
-    function addEnemyActionRow() {
-        const rowId = 'earow-' + Date.now() + Math.random();
-        const div = document.createElement('div');
-        div.className = 'enemy-action-row';
-        div.id = rowId;
-        div.innerHTML = `
+    return `<div class="opt-box" data-type="${type}">${html} <span class="opt-del" onclick="actions.removeOption('${rowId}','${id}')">×</span></div>`;
+}
+
+/* ============================================================
+ * buildEnemyActionRowHtml（敵行動行のHTML生成）
+ * 現行 addEnemyActionRow のテンプレートを state バインディングに変換。
+ * ============================================================ */
+function buildEnemyActionRowHtml(row, index) {
+    const id = row.id;
+    const result = state.derived.enemyActionResults[id];
+
+    const fmtNet = (v) => {
+        if (v < 0) {
+            // 純粋な回復（マイナス値）: 黒縁取りの濃い緑、先頭に+
+            return `<span class="heal-text">+${Math.abs(v).toLocaleString()}</span>`;
+        }
+        return v.toLocaleString();
+    };
+
+    const resVal = (c) => {
+        if (!result) return '0';
+        return fmtNet(result.ctx.netBySide[c]);
+    };
+
+    const formulaHtml = result ? buildEnemyFormulaHtml(row, result.ctx) : buildEnemyFormulaHtml(row, {target: row.target, items: [], healItems:{l:[],c:[],r:[]}, totalDmg: 0, maxhp: 0, netBySide:{l:0,c:0,r:0}});
+
+    return `
+        <div class="enemy-action-row" id="${id}">
             <div class="ea-upper">
                 <div style="display:flex; flex-wrap:wrap; gap:10px; flex:1; min-width:0;">
                     <div class="col-op" style="width:94px;">
                         <div style="display:flex; gap:2px; margin-bottom:3px;">
-                            <button class="btn-op-v" onclick="moveRow('${rowId}','top')">最上</button><button class="btn-op-v" onclick="moveRow('${rowId}','up')">上</button>
-                            <button class="btn-op-v" onclick="moveRow('${rowId}','down')">下</button><button class="btn-op-v" onclick="moveRow('${rowId}','bottom')">最下</button>
+                            <button class="btn-op-v" onclick="actions.moveRow('${id}','top')">最上</button><button class="btn-op-v" onclick="actions.moveRow('${id}','up')">上</button>
+                            <button class="btn-op-v" onclick="actions.moveRow('${id}','down')">下</button><button class="btn-op-v" onclick="actions.moveRow('${id}','bottom')">最下</button>
                         </div>
-                        <button class="btn-op" style="width:100%; background:#2ecc71; color:white; border:none;" onclick="copyEnemyActionRow('${rowId}')">コピペ</button>
+                        <button class="btn-op" style="width:100%; background:#2ecc71; color:white; border:none;" onclick="actions.copyEnemyActionRow('${id}')">コピペ</button>
                     </div>
                     <div>
                         <div style="font-size:10px; color:#999;">行動者</div>
-                        <label><input type="radio" name="ea-target-${rowId}" class="ea-target" value="l" onchange="onEaTargetChange(this)">左</label>
-                        <label><input type="radio" name="ea-target-${rowId}" class="ea-target" value="c" checked onchange="onEaTargetChange(this)">中</label>
-                        <label><input type="radio" name="ea-target-${rowId}" class="ea-target" value="r" onchange="onEaTargetChange(this)">右</label>
+                        <label><input type="radio" name="ea-target-${id}" value="l" ${row.target==='l'?'checked':''} onchange="actions.setEaTarget('${id}','l')">左</label>
+                        <label><input type="radio" name="ea-target-${id}" value="c" ${row.target==='c'?'checked':''} onchange="actions.setEaTarget('${id}','c')">中</label>
+                        <label><input type="radio" name="ea-target-${id}" value="r" ${row.target==='r'?'checked':''} onchange="actions.setEaTarget('${id}','r')">右</label>
                     </div>
                     <div>
-                        <input type="text" class="ea-move-name" placeholder="技名" style="width:100px;" oninput="allCalculate()">
+                        <input type="text" value="${escapeAttr(row.moveName)}" placeholder="技名" style="width:100px;" oninput="actions.setEnemyActionField('${id}','moveName',this.value)">
                         <div style="font-size:10px; margin-top:3px;">
-                            <label><input type="radio" name="ea-cat-${rowId}" class="ea-cat" value="normal" checked onchange="allCalculate()">通常技</label>
-                            <label><input type="radio" name="ea-cat-${rowId}" class="ea-cat" value="t" onchange="allCalculate()">T技</label>
-                            <label><input type="radio" name="ea-cat-${rowId}" class="ea-cat" value="b" onchange="allCalculate()">B技</label>
-                            <label><input type="radio" name="ea-cat-${rowId}" class="ea-cat" value="bd" onchange="allCalculate()">BD技</label>
+                            <label><input type="radio" name="ea-cat-${id}" value="normal" ${row.category==='normal'?'checked':''} onchange="actions.setEnemyActionField('${id}','category','normal')">通常技</label>
+                            <label><input type="radio" name="ea-cat-${id}" value="t" ${row.category==='t'?'checked':''} onchange="actions.setEnemyActionField('${id}','category','t')">T技</label>
+                            <label><input type="radio" name="ea-cat-${id}" value="b" ${row.category==='b'?'checked':''} onchange="actions.setEnemyActionField('${id}','category','b')">B技</label>
+                            <label><input type="radio" name="ea-cat-${id}" value="bd" ${row.category==='bd'?'checked':''} onchange="actions.setEnemyActionField('${id}','category','bd')">BD技</label>
                         </div>
                     </div>
                 </div>
@@ -529,697 +1856,435 @@
                     <div class="col-res">
                         <table class="res-table">
                             <tr><th>左</th><th>中</th><th>右</th></tr>
-                            <tr><td class="ea-res-l">0</td><td class="ea-res-c">0</td><td class="ea-res-r">0</td></tr>
+                            <tr><td>${resVal('l')}</td><td>${resVal('c')}</td><td>${resVal('r')}</td></tr>
                         </table>
                         <div style="display:flex; justify-content:center; align-items:center; gap:4px; font-size:10px; margin-top:4px;">
-                            BC: <input type="number" class="ea-bc-before" style="width:35px" oninput="allCalculate()"> → <input type="number" class="ea-bc-after" style="width:35px" oninput="allCalculate()">
+                            BC: <input type="number" value="${row.bcBefore}" style="width:35px" oninput="actions.setEnemyActionField('${id}','bcBefore',this.value)"> → <input type="number" value="${row.bcAfter}" style="width:35px" oninput="actions.setEnemyActionField('${id}','bcAfter',this.value)">
                         </div>
                     </div>
-                    <div class="col-delete"><button class="btn-del-row" onclick="document.getElementById('${rowId}').remove(); allCalculate();">×</button></div>
+                    <div class="col-delete"><button class="btn-del-row" onclick="actions.removeRow('${id}')">×</button></div>
                 </div>
             </div>
             <div class="ea-lower">
                 <div class="ea-dmgtype">
-                    <label><input type="checkbox" class="ea-bind" onchange="allCalculate()">バインド</label>
-                    <div style="padding-left:14px;">耐性<input type="number" class="ea-bind-res" value="0" min="0" max="10" style="width:30px" oninput="allCalculate()"> 増加<input type="number" class="ea-bind-inc" value="0" min="0" style="width:30px" oninput="allCalculate()"></div>
+                    <label><input type="checkbox" ${row.bind.active?'checked':''} onchange="actions.setEaSubField('${id}','bind','active',this.checked)">バインド</label>
+                    <div style="padding-left:14px;">耐性<input type="number" value="${row.bind.res}" min="0" max="10" style="width:30px" oninput="actions.setEaSubField('${id}','bind','res',this.value)"> 増加<input type="number" value="${row.bind.inc}" min="0" style="width:30px" oninput="actions.setEaSubField('${id}','bind','inc',this.value)"></div>
                 </div>
                 <div class="ea-dmgtype">
-                    <label><input type="checkbox" class="ea-poison" onchange="allCalculate()">どく</label>
+                    <label><input type="checkbox" ${row.poison.active?'checked':''} onchange="actions.setEaSubField('${id}','poison','active',this.checked)">どく</label>
                     <div style="padding-left:14px;">
-                        <label><input type="radio" name="ea-ptype-${rowId}" class="ea-ptype" value="poison" checked onchange="allCalculate()">どく</label>
-                        <label><input type="radio" name="ea-ptype-${rowId}" class="ea-ptype" value="badpoison" onchange="allCalculate()">もうどく</label>
+                        <label><input type="radio" name="ea-ptype-${id}" value="poison" ${row.poison.ptype==='poison'?'checked':''} onchange="actions.setEaSubField('${id}','poison','ptype','poison')">どく</label>
+                        <label><input type="radio" name="ea-ptype-${id}" value="badpoison" ${row.poison.ptype==='badpoison'?'checked':''} onchange="actions.setEaSubField('${id}','poison','ptype','badpoison')">もうどく</label>
                     </div>
-                    <div style="padding-left:14px;">耐性<input type="number" class="ea-poison-res" value="0" min="0" max="10" style="width:30px" oninput="allCalculate()"> 増加<input type="number" class="ea-poison-inc" value="0" min="0" style="width:30px" oninput="allCalculate()"></div>
+                    <div style="padding-left:14px;">耐性<input type="number" value="${row.poison.res}" min="0" max="10" style="width:30px" oninput="actions.setEaSubField('${id}','poison','res',this.value)"> 増加<input type="number" value="${row.poison.inc}" min="0" style="width:30px" oninput="actions.setEaSubField('${id}','poison','inc',this.value)"></div>
                 </div>
                 <div class="ea-dmgtype">
-                    <label><input type="checkbox" class="ea-burn" onchange="allCalculate()">やけど</label>
-                    <div style="padding-left:14px;">耐性<input type="number" class="ea-burn-res" value="0" min="0" max="10" style="width:30px" oninput="allCalculate()"> 増加<input type="number" class="ea-burn-inc" value="0" min="0" style="width:30px" oninput="allCalculate()"></div>
+                    <label><input type="checkbox" ${row.burn.active?'checked':''} onchange="actions.setEaSubField('${id}','burn','active',this.checked)">やけど</label>
+                    <div style="padding-left:14px;">耐性<input type="number" value="${row.burn.res}" min="0" max="10" style="width:30px" oninput="actions.setEaSubField('${id}','burn','res',this.value)"> 増加<input type="number" value="${row.burn.inc}" min="0" style="width:30px" oninput="actions.setEaSubField('${id}','burn','inc',this.value)"></div>
                 </div>
                 <div class="ea-dmgtype">
-                    <label><input type="checkbox" class="ea-weather" onchange="allCalculate()">天候</label>
+                    <label><input type="checkbox" ${row.weather.active?'checked':''} onchange="actions.setEaSubField('${id}','weather','active',this.checked)">天候</label>
                 </div>
                 <div class="ea-dmgtype">
-                    <label><input type="checkbox" class="ea-zone" onchange="allCalculate()">ダメージの場</label>
-                    <div style="padding-left:14px;">耐性<input type="number" class="ea-zone-res" value="0" min="0" max="10" style="width:30px" oninput="allCalculate()"></div>
-                    <div style="padding-left:14px;"><label><input type="checkbox" class="ea-zone-weak" onchange="allCalculate()">弱点</label></div>
-                    <div style="padding-left:14px;">タイプ抵抗<select class="ea-zone-resist" onchange="allCalculate()">${[-3,-2,-1,0,1,2,3].map(v=>`<option value="${v}" ${v===0?'selected':''}>${v>0?'+'+v:v}</option>`)}</select></div>
+                    <label><input type="checkbox" ${row.zone.active?'checked':''} onchange="actions.setEaSubField('${id}','zone','active',this.checked)">ダメージの場</label>
+                    <div style="padding-left:14px;">耐性<input type="number" value="${row.zone.res}" min="0" max="10" style="width:30px" oninput="actions.setEaSubField('${id}','zone','res',this.value)"></div>
+                    <div style="padding-left:14px;"><label><input type="checkbox" ${row.zone.weak?'checked':''} onchange="actions.setEaSubField('${id}','zone','weak',this.checked)">弱点</label></div>
+                    <div style="padding-left:14px;">タイプ抵抗<select onchange="actions.setEaSubField('${id}','zone','typeResist',this.value)">${[-3,-2,-1,0,1,2,3].map(v=>`<option value="${v}" ${Number(row.zone.typeResist)===v?'selected':''}>${v>0?'+'+v:v}</option>`).join('')}</select></div>
                 </div>
             </div>
-            <div class="formula-row"></div>
-        `;
-        document.getElementById('action-list').appendChild(div);
-
-        // デフォルト値の設定
-        // 耐性: 行動者(初期値:中央)の敵ステータス設定欄の値を初期値として使用
-        applyEaResistDefaults(div, 'c');
-
-        // ダメージ増加: 全味方バディーズの設定値の合計を初期値として使用
-        applyEaIncreaseDefaults(div);
-
-        // BC: 直前の敵行動行のBC(行動後)を継承し、1ずつ減算（0の次は6）
-        const allEnemyRows = Array.from(document.querySelectorAll('.enemy-action-row'));
-        const idx = allEnemyRows.indexOf(div);
-        const prevRow = idx > 0 ? allEnemyRows[idx-1] : null;
-        let beforeBC = 6;
-        if(prevRow) {
-            const prevAfterBC = prevRow.querySelector('.ea-bc-after').value;
-            beforeBC = prevAfterBC !== '' ? Number(prevAfterBC) : 6;
-        }
-        div.querySelector('.ea-bc-before').value = beforeBC;
-        div.querySelector('.ea-bc-after').value = ((beforeBC - 1) % 7 + 7) % 7;
-
-        allCalculate();
-    }
-
-    function copyEnemyActionRow(id) {
-        const original = document.getElementById(id);
-        addEnemyActionRow();
-        const rows = document.querySelectorAll('.enemy-action-row');
-        const target = rows[rows.length - 1];
-
-        // 行動者・分類
-        const origTarget = original.querySelector('.ea-target:checked').value;
-        target.querySelectorAll('.ea-target').forEach(r => r.checked = (r.value === origTarget));
-        const origCat = original.querySelector('.ea-cat:checked').value;
-        target.querySelectorAll('.ea-cat').forEach(r => r.checked = (r.value === origCat));
-
-        // 技名
-        target.querySelector('.ea-move-name').value = original.querySelector('.ea-move-name').value;
-
-        // バインド
-        target.querySelector('.ea-bind').checked = original.querySelector('.ea-bind').checked;
-        target.querySelector('.ea-bind-res').value = original.querySelector('.ea-bind-res').value;
-        target.querySelector('.ea-bind-inc').value = original.querySelector('.ea-bind-inc').value;
-
-        // どく/もうどく
-        target.querySelector('.ea-poison').checked = original.querySelector('.ea-poison').checked;
-        const origPtype = original.querySelector('.ea-ptype:checked').value;
-        target.querySelectorAll('.ea-ptype').forEach(r => r.checked = (r.value === origPtype));
-        target.querySelector('.ea-poison-res').value = original.querySelector('.ea-poison-res').value;
-        target.querySelector('.ea-poison-inc').value = original.querySelector('.ea-poison-inc').value;
-
-        // やけど
-        target.querySelector('.ea-burn').checked = original.querySelector('.ea-burn').checked;
-        target.querySelector('.ea-burn-res').value = original.querySelector('.ea-burn-res').value;
-        target.querySelector('.ea-burn-inc').value = original.querySelector('.ea-burn-inc').value;
-
-        // 天候
-        target.querySelector('.ea-weather').checked = original.querySelector('.ea-weather').checked;
-
-        // ダメージの場
-        target.querySelector('.ea-zone').checked = original.querySelector('.ea-zone').checked;
-        target.querySelector('.ea-zone-res').value = original.querySelector('.ea-zone-res').value;
-        target.querySelector('.ea-zone-weak').checked = original.querySelector('.ea-zone-weak').checked;
-        target.querySelector('.ea-zone-resist').value = original.querySelector('.ea-zone-resist').value;
-
-        allCalculate();
-    }
-
-    function applyEaResistDefaults(row, targetKey) {
-        const sName = {l:'Left', c:'Center', r:'Right'}[targetKey];
-        const get = id => {
-            const el = document.getElementById(id);
-            return el && el.value !== '' ? Number(el.value) : 0;
-        };
-        row.querySelector('.ea-bind-res').value = get(`resist-bind-${sName}`);
-        row.querySelector('.ea-poison-res').value = get(`resist-poison-${sName}`);
-        row.querySelector('.ea-burn-res').value = get(`resist-burn-${sName}`);
-        row.querySelector('.ea-zone-res').value = get(`resist-zone-${sName}`);
-    }
-
-    // 敵ステータスの耐性初期値が変更された時、該当する敵行動行(行動者=該当サイド)の耐性欄を一括更新
-    function syncEaResistDefaults(side) {
-        const targetKey = {Left:'l', Center:'c', Right:'r'}[side];
-        document.querySelectorAll('.enemy-action-row').forEach(row => {
-            const target = row.querySelector('.ea-target:checked').value;
-            if(target === targetKey) applyEaResistDefaults(row, targetKey);
-        });
-        allCalculate();
-    }
-
-    function applyEaIncreaseDefaults(row) {
-        let bindInc = 0, poisonInc = 0, burnInc = 0;
-        document.querySelectorAll('.buddy-main').forEach(m => {
-            bindInc   += Number(m.querySelector('.b-bind-inc')?.value || 0);
-            poisonInc += Number(m.querySelector('.b-poison-inc')?.value || 0);
-            burnInc   += Number(m.querySelector('.b-burn-inc')?.value || 0);
-        });
-        row.querySelector('.ea-bind-inc').value = bindInc;
-        row.querySelector('.ea-poison-inc').value = poisonInc;
-        row.querySelector('.ea-burn-inc').value = burnInc;
-    }
-
-    // 味方の状態異常ダメージ増加パッシブが変更された時、全ての敵行動行の増加欄を一括更新
-    function syncEaIncreaseDefaults() {
-        document.querySelectorAll('.enemy-action-row').forEach(row => applyEaIncreaseDefaults(row));
-        allCalculate();
-    }
-
-    function onEaTargetChange(radio) {
-        const row = radio.closest('.enemy-action-row');
-        applyEaResistDefaults(row, radio.value);
-        allCalculate();
-    }
-
-    function addOption(rowId, type = null, vals = null) {
-        const row = document.getElementById(rowId);
-        const optType = type || row.querySelector('.opt-select').value;
-        const container = row.querySelector('.dynamic-opts');
-        const box = document.createElement('div');
-        box.className = 'opt-box';
-        box.dataset.type = optType;
-
-        let html = '';
-        if(optType === 'WTZ') html = `WTZ: <select onchange="allCalculate()"><option value="1.5">WTZ</option><option value="3.0">EXWTZ</option></select>`;
-        if(optType === 'Circle') html = `サークル: <select class="c-loc" onchange="allCalculate()">${regions.map(v=>`<option value="${v}">${v}</option>`)}</select> <select class="c-n" onchange="allCalculate()">${[1,2,3].map(v=>`<option value="${v}">${v}</option>`)}</select>人 <select class="c-type" onchange="allCalculate()"><option value="物理">物理</option><option value="特殊">特殊</option><option value="防御">防御</option></select>`;
-        if(optType === 'Resist') {
-            const _ro = ['0.625','0.666','0.769','1.3','1.5','1.6'].map((v,i)=>`<option value="${v}" ${v==='1.3'?'selected':''}>${['+3','+2','+1','-1','-2','-3'][i]}</option>`).join('');
-            html = `抵抗 <span style="font-size:9px;color:#999;">左</span><select class="r-val r-val-l" onchange="allCalculate()">${_ro}</select> <span style="font-size:9px;color:#999;">中</span><select class="r-val r-val-c" onchange="allCalculate()">${_ro}</select> <span style="font-size:9px;color:#999;">右</span><select class="r-val r-val-r" onchange="allCalculate()">${_ro}</select>`;}
-        if(optType === 'Break') html = `ブレイク状態 左:<input type="checkbox" class="br-l" checked onchange="allCalculate()"> 中:<input type="checkbox" class="br-c" checked onchange="allCalculate()"> 右:<input type="checkbox" class="br-r" checked onchange="allCalculate()">`;
-        if(optType === 'SuperEff') html = `次回抜群 <input type="checkbox" checked onchange="allCalculate()">`;
-        if(optType === 'ReduceStat') html = `軽減状態 <input type="checkbox" checked onchange="allCalculate()">`;
-        if(optType === 'NextGuard') html = `ダメ防御 左:<input type="checkbox" class="ng-l" checked onchange="allCalculate()"> 中:<input type="checkbox" class="ng-c" checked onchange="allCalculate()"> 右:<input type="checkbox" class="ng-r" checked onchange="allCalculate()">`;
-        if(optType === 'ReduceSkill') html = `タイプガード <span style='font-size:9px;color:#999;'>左</span><input type='checkbox' class='rsk-l' onchange='allCalculate()' checked> <span style='font-size:9px;color:#999;'>中</span><input type='checkbox' class='rsk-c' onchange='allCalculate()' checked> <span style='font-size:9px;color:#999;'>右</span><input type='checkbox' class='rsk-r' onchange='allCalculate()' checked> <select class='rsk-val' onchange='allCalculate()'><option value='0.7'>0.7倍</option></select>`;
-        if(optType === 'Burn') html = `火傷 <input type="checkbox" checked onchange="allCalculate()">`;
-        if(optType === 'Other') html = `その他 左:<input type="number" class="ot-l" value="1.0" step="0.1" style="width:40px" oninput="allCalculate()">倍 中:<input type="number" class="ot-c" value="1.0" step="0.1" style="width:40px" oninput="allCalculate()">倍 右:<input type="number" class="ot-r" value="1.0" step="0.1" style="width:40px" oninput="allCalculate()">倍`;
-        if(optType === 'Comment') {const commentRow = row.querySelector('.comment-row');
-            // 既に存在するなら追加しない
-            if(commentRow.querySelector('.comment-text'))
-                return;
-            commentRow.innerHTML = `
-                <input
-                    type="text"
-                    class="comment-text"
-                    placeholder="コメント"
-                    style="
-                        width:100%;
-                        margin-top:5px;
-                        box-sizing:border-box;
-                    "
-                >
-                <span
-                    style="
-                        cursor:pointer;
-                        margin-left:5px;
-                    "
-                    onclick="
-                        this.closest('.comment-row').innerHTML='';
-                    "
-                >×</span>
-            `;
-
-            return;
-        }
-
-        box.innerHTML = `${html} <span class="opt-del" onclick="this.parentElement.remove(); allCalculate();">×</span>`;
-        container.appendChild(box);
-        if(vals) { /* 復元ロジック */ }
-        allCalculate();
-    }
-
-    function allCalculate() {
-        let totals = {Left:0, Center:0, Right:0};
-        const isCheer = document.getElementById('cheerUp').checked;
-
-        // 全体共通パッシブの計算
-        let masterAddBase = 0;
-        let masterEXAddBase = 0;
-
-        document.querySelectorAll('.action-row').forEach(row => {
-            const moveType = row.querySelector('.move-type:checked').value;
-            const mCat = row.querySelector('.move-cat').value;
-            const isB = moveType === 'b';
-            const isBD = moveType === 'bd';
-
-            // バディーズステータスとスキル装備倍率の取得
-            const sel = row.querySelector('.buddy-select');
-            const opt = sel.options[sel.selectedIndex];
-            if(!opt) return;
-            const baseStat = Number(opt.dataset[row.querySelector('.my-stat-type').value]);
-            const skP = Number(opt.dataset.skp), skB = Number(opt.dataset.skb);
-
-            // ブーストと上昇スキルの加算
-            const bstLevel = Number(row.querySelector('.boost').value);
-            let bstRate = isB ? 10 : (isBD ? 0 : 40);
-            let skillAdd = bstLevel * bstRate;
-            row.querySelectorAll('.skill-val').forEach(v => skillAdd += Number(v.value));
-
-            // マスターパッシブ等の加算（条件判定）
-            document.querySelectorAll('#master-opts-root .opt-box').forEach(box => {
-                const type = box.dataset.type;
-                const n = Number(box.querySelector('.m-n').value);
-                if(type === 'MP') {
-                    if(isB || isBD) return;
-                    const kind = box.querySelector('.m-kind').value;
-                    if(kind === '先導') skillAdd += [0,10,20,30][n];
-                    else if(kind === '闘志' && mCat === 'physical') skillAdd += [0,20,35,50][n];
-                    else if(kind === '信念' && mCat === 'special') skillAdd += [0,20,35,50][n];
-                } else if(type === 'MEX') {
-                    if(isBD) return;
-                    skillAdd += [0,20,35,50][n];
-                } else if(type === 'Myth') {
-                    if(isB || isBD) return;
-                    skillAdd += [0,10,20,30][n];
-                } else if(type === 'Charisma') {
-                    if(isB || isBD) return;
-                    skillAdd += [0,10,15,20][n];
-                }
-            });
-            
-            const volt = Number(row.querySelector('.volt-val').value);
-            const bp = Number(row.querySelector('.bp').value) + Number(row.querySelector('.bsb-bp').value);
-            let fBP = Math.floor(bp * (1 + skillAdd/100));
-            fBP = fBP * (volt + 2) / 2;
-
-            // 基本倍率
-            let baseMulti = (Number(row.querySelector('.eff-mul').value)/100) * (isCheer ? 1.5 : 1.0);
-            
-            // スキル装備倍率（独立積算）
-            if(isB) baseMulti *= (1 + skB/100);
-            else if(!isBD) baseMulti *= (1 + skP/100);
-
-            // その他オプション
-            let commonOptionsMulti = 1.0;
-            let superEffActive = false;
-            let reduceStatActive = false;
-            let burnActive = false;
-            let reduceSkillMulti_l = 1.0, reduceSkillMulti_c = 1.0, reduceSkillMulti_r = 1.0;
-            let otherMulti = 1.0;
-            let wtzMulti = 1.0;
-            let resistMulti_l = 1.0, resistMulti_c = 1.0, resistMulti_r = 1.0;
-            let circleMulti = 1.0;
-
-            row.querySelectorAll('.dynamic-opts .opt-box').forEach(box => {
-                const type = box.dataset.type;
-                if(type==='WTZ') wtzMulti *= Number(box.querySelector('select').value);
-                if(type==='Resist') {
-                    resistMulti_l *= Number(box.querySelector('.r-val-l').value);
-                    resistMulti_c *= Number(box.querySelector('.r-val-c').value);
-                    resistMulti_r *= Number(box.querySelector('.r-val-r').value);
-                }
-                if(type==='SuperEff' && box.querySelector('input').checked) superEffActive = true;
-                if(type==='ReduceStat' && box.querySelector('input').checked) reduceStatActive = true;
-                if(type==='ReduceSkill') {
-                    const rv = Number(box.querySelector('.rsk-val').value);
-                    if(box.querySelector('.rsk-l').checked) reduceSkillMulti_l *= rv;
-                    if(box.querySelector('.rsk-c').checked) reduceSkillMulti_c *= rv;
-                    if(box.querySelector('.rsk-r').checked) reduceSkillMulti_r *= rv;
-                }
-                if(type==='Burn' && box.querySelector('input').checked && mCat==='physical') burnActive = 0.8;
-                if(type==='Circle' && !isBD) {
-                    const ct = box.querySelector('.c-type').value, cn = Number(box.querySelector('.c-n').value);
-                    if(ct==='防御') circleMulti *= (21+cn)/20;
-                    else if((ct==='物理'&&mCat==='physical') || (ct==='特殊'&&mCat==='special')) circleMulti *= (11+cn)/10;
-                }
-            });
-
-            // 計算式表示用コンテキスト収集
-            const formulaCtx = {
-                isB, isBD, mCat,
-                baseStat,
-                atkRankRaw: Number(row.querySelector('.my-rank').value),
-                skP, skB,
-                bstLevel, bstRate,
-                skillAdd,
-                volt,
-                bpRaw: Number(row.querySelector('.bp').value),
-                bsbBp: Number(row.querySelector('.bsb-bp').value),
-                fBP,
-                effMul: Number(row.querySelector('.eff-mul').value),
-                isCheer,
-                baseMulti,
-                wtzMulti, resistMulti_l, resistMulti_c, resistMulti_r, circleMulti, reduceSkillMulti_l, reduceSkillMulti_c, reduceSkillMulti_r,
-                burnActive,
-                statTypeName: row.querySelector('.my-stat-type').value === 'atk' ? '攻撃' : '特攻',
-                enStatTypeName: row.querySelector('.en-stat-type').value === 'def' ? '防御' : '特防',
-                // オプション名収集
-                wtzNames: [], resistNames: {l:[], c:[], r:[]}, reduceSkillNames: {l:[], c:[], r:[]}, circleNames: [], circleMults: [], skillNames: [],
-                masterNames: [],
-                superEffActive, reduceStatActive,
-                breakActive: {l:false,c:false,r:false},
-                ngActive: {l:false,c:false,r:false},
-                otherVals: {l:1,c:1,r:1},
-                weakActive: {
-                    l: row.querySelector('.t-l').checked && row.querySelector('.w-l').checked,
-                    c: row.querySelector('.t-c').checked && row.querySelector('.w-c').checked,
-                    r: row.querySelector('.t-r').checked && row.querySelector('.w-r').checked
-                },
-                critActive: {
-                    l: row.querySelector('.crit-l').checked,
-                    c: row.querySelector('.crit-c').checked,
-                    r: row.querySelector('.crit-r').checked
-                },
-                eDef: {l:0,c:0,r:0},
-                eRankRaw: {l:0,c:0,r:0},
-                eRankMul: {l:1,c:1,r:1},
-                fDef: {l:0,c:0,r:0},
-                dmgResult: {l:0,c:0,r:0},
-                critAtkRank: {l:0,c:0,r:0},
-                moveName: row.querySelector('.move-name').value || '技'
-            };
-            // オプション名収集
-            row.querySelectorAll('.dynamic-opts .opt-box').forEach(box => {
-                const type = box.dataset.type;
-                if(type==='WTZ') formulaCtx.wtzNames.push(Number(box.querySelector('select').value)===3.0?'EXWTZ':'WTZ');
-                if(type==='Resist') {
-                    const lmap = {0.625:'+3',0.666:'+2',0.769:'+1',1.3:'-1',1.5:'-2',1.6:'-3'};
-                    ['l','c','r'].forEach(c => {
-                        const rv = Number(box.querySelector(`.r-val-${c}`).value);
-                        formulaCtx.resistNames[c].push('抵抗'+(lmap[rv]||rv));
-                    });
-                }
-                if(type==='ReduceSkill') {
-                    const rv = Number(box.querySelector('.rsk-val').value);
-                    ['l','c','r'].forEach(c => {
-                        if(box.querySelector(`.rsk-${c}`).checked)
-                            formulaCtx.reduceSkillNames[c].push(rv.toString()+'倍');
-                    });
-                }
-                if(type==='Circle' && !isBD) {
-                    const loc = box.querySelector('.c-loc').value, cn = box.querySelector('.c-n').value, ct = box.querySelector('.c-type').value;
-                    formulaCtx.circleNames.push(`${loc}${ct}`);
-                    const ctn = Number(cn);
-                    let cmv = 1.0;
-                    if(ct==='防御') cmv = (21+ctn)/20;
-                    else if((ct==='物理'&&mCat==='physical')||(ct==='特殊'&&mCat==='special')) cmv = (11+ctn)/10;
-                    formulaCtx.circleMults.push(cmv);
-                }
-                if(type==='Break') {
-                    ['l','c','r'].forEach(c => { if(box.querySelector(`.br-${c}`)?.checked) formulaCtx.breakActive[c] = true; });
-                }
-                if(type==='NextGuard') {
-                    ['l','c','r'].forEach(c => { if(box.querySelector(`.ng-${c}`)?.checked) formulaCtx.ngActive[c] = true; });
-                }
-                if(type==='Other') {
-                    ['l','c','r'].forEach(c => { const v = box.querySelector(`.ot-${c}`)?.value; if(v && Number(v)!==1) formulaCtx.otherVals[c] = Number(v); });
-                }
-            });
-            row.querySelectorAll('.skill-list .skill-val').forEach((v,i) => {
-                const name = row.querySelectorAll('.skill-list input[type="text"]')[i]?.value || 'スキル';
-                if(Number(v.value)!==0) formulaCtx.skillNames.push(`${name}+${v.value}%`);
-            });
-            document.querySelectorAll('#master-opts-root .opt-box').forEach(box => {
-                const type = box.dataset.type;
-                const n = Number(box.querySelector('.m-n').value);
-                const reg = box.querySelector('.m-reg')?.value || '';
-                let kind;
-                if(type==='MP') kind = reg + box.querySelector('.m-kind').value;
-                else if(type==='MEX') kind = reg + 'マスターEX';
-                else if(type==='Myth') kind = reg + '神話';
-                else kind = reg + 'カリスマ';
-                const mpKind = type==='MP' ? box.querySelector('.m-kind').value : '';
-                let val;
-                if(type==='MP') {
-                    if(mpKind==='先導') val = [0,10,20,30][n];
-                    else val = [0,20,35,50][n]; // 闘志・信念
-                } else if(type==='MEX') val = [0,20,35,50][n];
-                else if(type==='Myth') val = [0,10,20,30][n];
-                else val = [0,10,15,20][n];
-                const mpApplies = type!=='MP' || (
-                    !isB && !isBD &&
-                    (mpKind==='先導' || (mpKind==='闘志' && mCat==='physical') || (mpKind==='信念' && mCat==='special'))
-);
-                const mexApplies = type!=='MEX' || !isBD;
-                const mythApplies = (type!=='Myth' && type!=='Charisma') || (!isB && !isBD);
-                if(val && mpApplies && mexApplies && mythApplies)
-                    formulaCtx.masterNames.push(`${kind}+${val}%`);
-            });
-            sides.forEach((s,idx) => {
-                const c = s[0].toLowerCase();
-                const rsuf = {'Left':'l','Center':'c','Right':'r'}[s];
-                formulaCtx.eRankRaw[c] = Number(row.querySelector(`.en-rank-${rsuf}`).value);
-                formulaCtx.eDef[c] = Number(document.getElementById(`${row.querySelector('.en-stat-type').value}-${s}`).value);
-                // fDefは後でdmg計算後に取得するため、ダメージ表示から逆算
-            });
-
-            const tgs = [row.querySelector('.t-l').checked, row.querySelector('.t-c').checked, row.querySelector('.t-r').checked];
-            const tCnt = tgs.filter(v=>v).length;
-            const _zone = row.querySelector('.no-split-zone');
-            const _noSplitChk = _zone.querySelector('.no-split-chk');
-            const _noSplit = _noSplitChk ? _noSplitChk.checked : (_zone.dataset.noSplit === 'true');
-            const split = (tCnt>1 && !_noSplit) ? (tCnt===2 ? 2/3 : 0.5) : 1;
-            formulaCtx.split = split;
-            formulaCtx.tCnt = tCnt;
-
-            sides.forEach((s, idx) => {
-                const c = s[0].toLowerCase();
-                if(!tgs[idx]) { row.querySelector(`.res-${c}`).innerText = "0"; return; }
-
-                let sideMulti = 1.0;
-                // 急所判定
-                const isCrit = row.querySelector(`.crit-${c}`).checked;
-                if(isCrit) sideMulti *= 1.5;
-
-                let atkRank =
-                    Number(row.querySelector('.my-rank').value);
-
-                if(isCrit && atkRank < 0)
-                    atkRank = 0;
-
-                const fAtk = Math.floor(baseStat * rankTable[String(atkRank)]);
-                
-                // 物理・特殊軽減（急所時は無視）
-                if(reduceStatActive && !isCrit) sideMulti *= (2/3);
-
-                // ブレイク状態
-                const breakBox =
-                    Array.from(
-                        row.querySelectorAll('.dynamic-opts .opt-box')
-                    ).find(b => b.dataset.type === 'Break');
-                if(breakBox && breakBox.querySelector(`.br-${c}`)?.checked) {
-                    sideMulti *= 1.5;
-                }
-
-                // 次回抜群（弱点時のみ）
-                if(superEffActive && row.querySelector(`.w-${c}`).checked) sideMulti *= 1.5;
-
-                // 次回ダメ防御
-                const ngBox = Array.from(row.querySelectorAll('.dynamic-opts .opt-box')).find(b => b.dataset.type === 'NextGuard');
-                if(ngBox && ngBox.querySelector(`.ng-${c}`).checked) {
-                    sideMulti *= (isB || isBD ? 0.5 : 0);
-                }
-
-                // その他
-                const otherInput = row.querySelector(`.ot-${c}`);
-                const other = otherInput && otherInput.value !== ''? Number(otherInput.value) : 1;
-                sideMulti *= other;
-
-
-                const eDef = Number(document.getElementById(`${row.querySelector('.en-stat-type').value}-${s}`).value);
-                const eRes = Number(document.getElementById(`res-${row.querySelector('.en-stat-type').value}-${s}`).value);
-                const rankSuffix = {'Left':'l','Center':'c','Right':'r'}[s];
-                let effectiveERank = Number(row.querySelector(`.en-rank-${rankSuffix}`).value);
-                if(isCrit && effectiveERank > 0)
-                    effectiveERank = 0;
-
-                let rMul;
-                if(effectiveERank >= 0) {
-                    rMul = rankTable[String(effectiveERank)];
-                } else {
-                    // ダウン耐性(eRes)を加味したランクマイナス計算
-                    // eRes=0のときはrankTableの値をフォールバック
-                    const absR = Math.abs(effectiveERank);
-                    const b = absR * 10 + 100;
-                    const reducedRes = absR * 10 * 0.1 * eRes;
-                    rMul = eRes > 0 ? (b - reducedRes) / b : rankTable[String(effectiveERank)];
-                }
-                const fDef = Math.floor(eDef * rMul);
-                const resistMulti = {l:resistMulti_l, c:resistMulti_c, r:resistMulti_r}[c];
-                const reduceSkillMulti = {l:reduceSkillMulti_l, c:reduceSkillMulti_c, r:reduceSkillMulti_r}[c];
-                const baseDmgPart = fAtk * fBP * baseMulti * wtzMulti * resistMulti * circleMulti * otherMulti * reduceSkillMulti * (burnActive || 1.0) * split;
-                let dmg = Math.floor(baseDmgPart * sideMulti / fDef);
-                if(row.querySelector(`.w-${c}`).checked) dmg *= 2;
-                
-                const dmgAvg = Math.floor(dmg * 0.95);
-                row.querySelector(`.res-${c}`).innerText = dmgAvg.toLocaleString();
-                totals[s] += dmgAvg;
-                // 計算式用に結果を記録
-                formulaCtx.dmgResult[c] = Math.floor(dmg);
-                formulaCtx.fDef[c] = fDef;
-                formulaCtx.eRankMul[c] = rMul;
-                formulaCtx.critAtkRank[c] = atkRank;
-            });
-            renderFormula(row, formulaCtx);
-        });
-        const enemyResult = calcAllEnemyActions();
-        const enemyTotals = enemyResult.totals;
-        const enemyMaxhp = enemyResult.maxhp;
-        const sideKeyMap = {Left:'l', Center:'c', Right:'r'};
-        sides.forEach(s => {
-            const c = sideKeyMap[s];
-            const combined = totals[s] + (enemyTotals[c] || 0);
-            document.getElementById(`total-${s.toLowerCase()}`).innerText = combined.toLocaleString();
-
-            const mhp = enemyMaxhp[c] || 0;
-            const sLower = s.toLowerCase();
-            const ratioEl = document.getElementById(`dmgratio-${sLower}`);
-            const remainEl = document.getElementById(`hpremain-${sLower}`);
-            const barEl = document.getElementById(`hpbar-${sLower}`);
-            if(mhp > 0) {
-                const dmgRatio = combined / mhp;
-                const remainRatio = Math.max(0, 1 - dmgRatio);
-                ratioEl.innerText = (dmgRatio*100).toFixed(1) + '%';
-                remainEl.innerText = (remainRatio*100).toFixed(1) + '%';
-                barEl.style.width = (remainRatio*100) + '%';
-                let color;
-                if(remainRatio >= 0.5) color = 'rgb(156,228,26)';
-                else if(remainRatio >= 0.33) color = 'rgb(255,206,56)';
-                else color = 'rgb(255,155,50)';
-                barEl.style.background = color;
-            } else {
-                ratioEl.innerText = '-';
-                remainEl.innerText = '-';
-                barEl.style.width = '100%';
-                barEl.style.background = 'rgb(156,228,26)';
-            }
-        });
-    }
-
-    function calcAllEnemyActions() {
-        const enemyRows = Array.from(document.querySelectorAll('.enemy-action-row'));
-        const sideNameMap = {l:'Left', c:'Center', r:'Right'};
-        const toxicStack = {l:0, c:0, r:0};
-        const enemyTotals = {l:0, c:0, r:0};
-        const resistFactor = n => n === 10 ? 0.05 : (1 - 0.1*n);
-
-        // 各サイドの最大HP取得
-        const maxhp = {};
-        sideKeysG.forEach(c => {
-            const el = document.getElementById(`maxhp-${sideNameMap[c]}`);
-            maxhp[c] = el && el.value ? Number(el.value) : 0;
-        });
-
-        enemyRows.forEach(row => {
-            const target = row.querySelector('.ea-target:checked').value; // l/c/r
-            const cat = row.querySelector('.ea-cat:checked').value; // normal/t/b/bd
-            const isNormal = cat === 'normal';
-            const isNormalOrT = cat === 'normal' || cat === 't';
-
-            const ctx = { target, cat, items: [] };
-
-            let totalDmg = 0;
-            const mhp = maxhp[target] || 0;
-
-            // バインド
-            if(row.querySelector('.ea-bind').checked && isNormal) {
-                const res = Number(row.querySelector('.ea-bind-res').value) || 0;
-                const inc = Number(row.querySelector('.ea-bind-inc').value) || 0;
-                const resFactor = resistFactor(res);
-                const incFactor = 1 + 0.1*inc;
-                const dmg = Math.floor(mhp/8 * resFactor * incFactor);
-                totalDmg += dmg;
-                ctx.items.push({type:'バインド', baseFrac:'1/8', res, inc, resFactor, incFactor, dmg});
-            }
-
-            // どく/もうどく
-            if(row.querySelector('.ea-poison').checked && isNormal) {
-                const ptype = row.querySelector('.ea-ptype:checked').value;
-                const res = Number(row.querySelector('.ea-poison-res').value) || 0;
-                const inc = Number(row.querySelector('.ea-poison-inc').value) || 0;
-                const resFactor = resistFactor(res);
-                const incFactor = 1 + 0.1*inc;
-                let baseFrac, baseVal;
-                if(ptype === 'poison') {
-                    baseFrac = '1/4';
-                    baseVal = 1/4;
-                } else {
-                    toxicStack[target] = Math.min(8, toxicStack[target]+1);
-                    const n = toxicStack[target];
-                    baseFrac = `${n}/8`;
-                    baseVal = n/8;
-                }
-                const dmg = Math.floor(mhp * baseVal * resFactor * incFactor);
-                totalDmg += dmg;
-                ctx.items.push({type: ptype==='poison'?'どく':'もうどく', baseFrac, res, inc, resFactor, incFactor, dmg});
-            }
-
-            // やけど
-            if(row.querySelector('.ea-burn').checked && isNormal) {
-                const res = Number(row.querySelector('.ea-burn-res').value) || 0;
-                const inc = Number(row.querySelector('.ea-burn-inc').value) || 0;
-                const resFactor = resistFactor(res);
-                const incFactor = 1 + 0.1*inc;
-                const dmg = Math.floor(mhp/8 * resFactor * incFactor);
-                totalDmg += dmg;
-                ctx.items.push({type:'やけど', baseFrac:'1/8', res, inc, resFactor, incFactor, dmg});
-            }
-
-            // 天候
-            if(row.querySelector('.ea-weather').checked && isNormalOrT) {
-                const dmg = Math.floor(mhp/32);
-                totalDmg += dmg;
-                ctx.items.push({type:'天候', baseFrac:'1/32', res:null, inc:null, resFactor:1, incFactor:1, dmg});
-            }
-
-            // ダメージの場
-            if(row.querySelector('.ea-zone').checked && isNormalOrT) {
-                const res = Number(row.querySelector('.ea-zone-res').value) || 0;
-                const weak = row.querySelector('.ea-zone-weak').checked;
-                const typeResist = Number(row.querySelector('.ea-zone-resist').value) || 0;
-                const resFactor = resistFactor(res);
-                const weakFactor = weak ? 2 : 1;
-                const typeResistTable = {'-3':10/16,'-2':10/15,'-1':10/13,'0':10/10,'1':13/10,'2':15/10,'3':16/10};
-                const typeResistFactor = typeResistTable[String(typeResist)];
-                const dmg = Math.floor(mhp/16 * resFactor * weakFactor * typeResistFactor);
-                totalDmg += dmg;
-                ctx.items.push({type:'ダメージの場', baseFrac:'1/16', res, inc:null, resFactor, incFactor:null, weak, weakFactor, typeResist, typeResistFactor, dmg});
-            }
-
-            ctx.totalDmg = totalDmg;
-            ctx.maxhp = mhp;
-
-            // 緑の表（ダメージ）に反映
-            sideKeysG.forEach(c => {
-                row.querySelector(`.ea-res-${c}`).innerText = (c === target) ? totalDmg.toLocaleString() : '0';
-            });
-            enemyTotals[target] += totalDmg;
-
-            renderEnemyFormula(row, ctx);
-        });
-
-        return {totals: enemyTotals, maxhp};
-    }
-
-    function renderEnemyFormula(row, ctx) {
-        const fRow = row.querySelector('.formula-row');
-        if(!fRow) return;
-        const isOpen = fRow.dataset.open === 'true';
-        const sideLabel = {l:'左', c:'中', r:'右'}[ctx.target];
-
-        const headerHtml = `<div style="padding:3px 10px; font-size:10px; color:#666;">
-            <button onclick="toggleFormula(this)" style="background:none;border:1px solid #ccc;border-radius:3px;cursor:pointer;padding:1px 6px;font-size:11px;">${isOpen ? '－' : '＋'}</button>
-            <span style="margin-left:4px;">ダメージ計算式</span>
+            <div class="ea-heal-row">
+                <div class="ea-heal-box">
+                    <span style="font-weight:bold;color:#27ae60;">回復(%)</span>
+                    <div style="display:flex; gap:6px;">
+                        <span>左<input type="number" value="${row.heal.l}" min="0" max="100" style="width:40px" oninput="actions.setEaHeal('${id}','l',this.value)"></span>
+                        <span>中<input type="number" value="${row.heal.c}" min="0" max="100" style="width:40px" oninput="actions.setEaHeal('${id}','c',this.value)"></span>
+                        <span>右<input type="number" value="${row.heal.r}" min="0" max="100" style="width:40px" oninput="actions.setEaHeal('${id}','r',this.value)"></span>
+                    </div>
+                </div>
+                <div class="ea-heal-box">
+                    <span style="font-weight:bold;color:#27ae60;">回復付帯</span>
+                    <div style="display:flex; gap:6px;">
+                        <label>左<input type="checkbox" ${row.heal.bonus.l?'checked':''} onchange="actions.setEaHealBonus('${id}','l',this.checked)"></label>
+                        <label>中<input type="checkbox" ${row.heal.bonus.c?'checked':''} onchange="actions.setEaHealBonus('${id}','c',this.checked)"></label>
+                        <label>右<input type="checkbox" ${row.heal.bonus.r?'checked':''} onchange="actions.setEaHealBonus('${id}','r',this.checked)"></label>
+                    </div>
+                </div>
+            </div>
+            <div class="formula-row">${formulaHtml}</div>
         </div>`;
+}
 
-        if(!isOpen) { fRow.innerHTML = headerHtml; return; }
+/* ============================================================
+ * renderActionList（行動詳細リスト全体の描画）
+ * state.actionList を順番に走査し、rowType に応じてHTMLを生成。
+ * 配列の順序 = 表示順序（State操作仕様4を満たす）。
+ * ============================================================ */
+function renderActionList() {
+    const container = document.getElementById('action-list');
+    container.innerHTML = state.actionList.map((item, idx) => {
+        if (item.rowType === 'action') return buildActionRowHtml(item.data, idx);
+        if (item.rowType === 'enemy') return buildEnemyActionRowHtml(item.data, idx);
+        return '';
+    }).join('');
+}
 
-        if(ctx.items.length === 0) {
-            fRow.innerHTML = headerHtml + `<div style="padding:4px 10px 8px; font-size:10px; color:#999;">該当する定数ダメージはありません</div>`;
-            return;
+/* ============================================================
+ * renderTotalSummary（合計ダメージ・ダメージ割合・HPバー）
+ * ============================================================ */
+function renderTotalSummary() {
+    const container = document.getElementById('total-summary');
+    const sideDefs = [
+        {key:'left', label:'左'},
+        {key:'center', label:'中央'},
+        {key:'right', label:'右'}
+    ];
+
+    container.innerHTML = sideDefs.map(({key, label}) => {
+        const t = state.derived.totals[key];
+        let ratioText = '-', remainText = '-', barWidth = 100, barColor = 'rgb(156,228,26)';
+        if (t.dmgRatio !== null) {
+            ratioText = (t.dmgRatio * 100).toFixed(1) + '%';
+            remainText = (t.hpRemainRatio * 100).toFixed(1) + '%';
+            barWidth = t.hpRemainRatio * 100;
+            if (t.hpRemainRatio >= 0.5) barColor = 'rgb(156,228,26)';
+            else if (t.hpRemainRatio >= 0.33) barColor = 'rgb(255,206,56)';
+            else barColor = 'rgb(255,155,50)';
+        }
+        return `
+            <div class="total-col">
+                <div>${label} 合計ダメージ: <span class="total-val">${t.totalDamage.toLocaleString()}</span></div>
+                <div class="total-ratio">ダメージ割合: <span>${ratioText}</span></div>
+                <div class="hp-bar-wrap"><div class="hp-bar-remain" style="width:${barWidth}%; background:${barColor};"></div></div>
+                <div class="hp-bar-label">残りHP: <span>${remainText}</span></div>
+            </div>`;
+    }).join('');
+}
+
+
+/* ============================================================
+ * renderFormula（味方行動行の「ダメージ計算式」テーブル）
+ * 現行 renderFormula の完全移植。ctx = derived.actionResults[id].formula
+ * 戻り値: HTML文字列（formula-row の中身）
+ * ============================================================ */
+function buildFormulaHtml(row, ctx) {
+    const isOpen = !!row.formulaOpen;
+
+    const headerHtml = `<div style="padding:3px 10px; font-size:10px; color:#666;">
+        <button onclick="actions.toggleFormula('${row.id}')" style="background:none;border:1px solid #ccc;border-radius:3px;cursor:pointer;padding:1px 6px;font-size:11px;">${isOpen ? '－' : '＋'}</button>
+        <span style="margin-left:4px;">ダメージ計算式</span>
+    </div>`;
+
+    if (!isOpen) return headerHtml;
+    if (!ctx) return headerHtml; // buddy未選択等で計算結果が無い場合
+
+    const fmt = v => {
+        if (typeof v !== 'number') return String(v);
+        if (Number.isInteger(v)) return v.toLocaleString();
+        const pairs = [[2,3,'2/3'],[1,2,'1/2']];
+        for (const [n,d,s] of pairs) if (Math.abs(v - n/d) < 0.0001) return s;
+        return v.toFixed(4).replace(/\.?0+$/, '');
+    };
+
+    const tChecked = [row.targets.l, row.targets.c, row.targets.r];
+    const activeSides = SIDE_KEYS.filter((_,i) => tChecked[i]);
+    if (activeSides.length === 0) return headerHtml;
+
+    const cellStyle = (extra='') => `padding:2px 6px;text-align:center;border:1px solid #ccc;white-space:nowrap;${extra}`;
+    const TH = (txt, cs=1, extra='') => `<th colspan="${cs}" style="${cellStyle('font-weight:bold;background:#e3f2fd;'+extra)}">${txt}</th>`;
+    const TD2 = (txt, extra='') => `<td style="${cellStyle(extra)}">${txt}</td>`;
+    const OP = (txt) => `<td style="padding:0 3px;text-align:center;color:#999;font-size:11px;white-space:nowrap;">${txt}</td>`;
+
+    let allTablesHtml = '';
+
+    activeSides.forEach(c => {
+        const si = SIDE_KEYS.indexOf(c);
+        const sLabel = SIDE_LABEL[c];
+
+        const isCrit = ctx.critActive[c];
+        const atkRankForSide = (isCrit && ctx.atkRankRaw < 0) ? 0 : ctx.atkRankRaw;
+        const atkRankClamped = isCrit && ctx.atkRankRaw < 0;
+        const atkRankDispBase = atkRankForSide >= 0 ? `+${atkRankForSide}段階` : `-${Math.abs(atkRankForSide)}段階`;
+        const atkRankDisp = atkRankClamped
+            ? `${ctx.atkRankRaw}段階(急所)`
+            : atkRankDispBase;
+        const atkRankMul = RANK_TABLE[String(atkRankForSide)];
+
+        const cols = [];
+
+        // 攻撃/特攻 実数値
+        cols.push({cat: ctx.statTypeName, name:'実数値', val: fmt(ctx.baseStat)});
+
+        // 自ランク補正
+        cols.push({cat:'ランク補正', name: atkRankDisp, val: fmt(atkRankMul)});
+
+        // BP加算グループ
+        cols.push({cat:'技威力', name:'技威力', val: fmt(ctx.bpRaw), addGrp:'bp'});
+        if (ctx.bsbBp !== 0)
+            cols.push({cat:'技威力', name:'BSB', val: fmt(ctx.bsbBp), addGrp:'bp'});
+
+        // 上昇スキル%加算グループ
+        const skillAddItems = [];
+        if (ctx.bstLevel > 0)
+            skillAddItems.push({name:`ブースト${ctx.bstLevel}段階`, val:'+'+fmt(ctx.bstLevel * ctx.bstRate)+'%'});
+        ctx.skillNames.forEach(n => {
+            const m = n.match(/^(.+)\+(\d+)%$/);
+            if (m) skillAddItems.push({name: m[1], val:'+'+m[2]+'%'});
+        });
+        ctx.masterNames.forEach(n => {
+            const m = n.match(/^(.+)\+(\d+)%$/);
+            if (m) skillAddItems.push({name: m[1], val:'+'+m[2]+'%'});
+        });
+        skillAddItems.forEach(item =>
+            cols.push({cat:'上昇スキル', name: item.name, val: item.val, addGrp:'skill'})
+        );
+
+        // ボルテージ
+        if (ctx.volt > 0)
+            cols.push({cat:'ボルテージ', name:`${ctx.volt}段階`, val: fmt((ctx.volt+2)/2)});
+
+        // 技内蔵効果
+        if (ctx.effMul !== 100)
+            cols.push({cat:'技内蔵効果', name:'技倍率', val: fmt(ctx.effMul/100)});
+
+        // 応援
+        if (ctx.isCheer)
+            cols.push({cat:'応援', name:'応援', val:'1.5'});
+
+        // スキル装備
+        const skVal = ctx.isB ? ctx.skB : (!ctx.isBD ? ctx.skP : 0);
+        if (skVal > 0)
+            cols.push({cat:'スキル装備', name: ctx.isB ? 'B技スキル装備' : 'スキル装備', val: fmt(1+skVal/100)});
+
+        // WTZ
+        ctx.wtzNames.forEach(n =>
+            cols.push({cat:'WTZ', name: n, val: n==='EXWTZ'?'3':'1.5'})
+        );
+
+        // タイプ抵抗（このサイド分）
+        ctx.resistNames[c].forEach(n => {
+            const suffix = n.replace('抵抗','');
+            const rv = RESIST_LABEL_TO_VAL[suffix];
+            cols.push({cat:'タイプ抵抗', name: n, val: rv!==undefined?fmt(rv):n});
+        });
+
+        // サークル（複数あれば個別に乗算列）
+        ctx.circleNames.forEach((cn, ci) => {
+            cols.push({cat:'サークル', name: cn, val: fmt(ctx.circleMults[ci])});
+        });
+
+        // タイプガード（サイド別）
+        const reduceSkillMultiSide = {l:ctx.reduceSkillMulti_l, c:ctx.reduceSkillMulti_c, r:ctx.reduceSkillMulti_r}[c];
+        if (reduceSkillMultiSide !== 1.0) {
+            const cnt = Math.max(1, Math.round(Math.log(reduceSkillMultiSide) / Math.log(0.7)));
+            for (let ki=0; ki<cnt; ki++)
+                cols.push({cat:'タイプガード', name:'タイプガード'+(cnt>1?` (${ki+1})`:''), val:'0.7'});
         }
 
-        const fmt = v => Number.isInteger(v) ? v.toLocaleString() : v.toFixed(3).replace(/\.?0+$/, '');
-        const cellStyle = (extra='') => `padding:2px 6px;text-align:center;border:1px solid #ccc;white-space:nowrap;${extra}`;
-        const TH = (txt, cs=1, extra='') => `<th colspan="${cs}" style="${cellStyle('font-weight:bold;background:#fdebee;'+extra)}">${txt}</th>`;
-        const TD = (txt, extra='') => `<td style="${cellStyle(extra)}">${txt}</td>`;
-        const OP = (txt) => `<td style="padding:0 3px;text-align:center;color:#999;font-size:11px;white-space:nowrap;">${txt}</td>`;
+        // 火傷
+        if (ctx.burnActive)
+            cols.push({cat:'火傷', name:'火傷(物理)', val:'0.8'});
 
+        // 威力分散
+        if (ctx.split !== 1)
+            cols.push({cat:'威力分散', name: `${ctx.tCnt}体`, val: fmt(ctx.split)});
+
+        // サイド別補正
+        if (isCrit)
+            cols.push({cat:'急所', name:'急所', val:'1.5'});
+        if (ctx.breakActive[c])
+            cols.push({cat:'ブレイク', name: ctx.mCat==='physical'?'物理ブレイク':'特殊ブレイク', val:'1.5'});
+        if (ctx.superEffActive && ctx.weakActive[c])
+            cols.push({cat:'次回抜群', name:'次回抜群', val:'1.5'});
+        if (ctx.reduceStatActive && !isCrit)
+            cols.push({cat:'物理/特殊軽減', name: ctx.mCat==='physical'?'物理壁':'特殊壁', val:'2/3'});
+        if (ctx.ngActive[c])
+            cols.push({cat:'次回ダメ防御', name:'次回ダメ防御', val:(ctx.isB||ctx.isBD)?'0.5':'0'});
+        if (ctx.otherVals[c] !== 1)
+            cols.push({cat:'その他', name:'その他', val: fmt(ctx.otherVals[c])});
+        if (ctx.weakActive[c])
+            cols.push({cat:'弱点', name:'弱点', val:'2'});
+
+        // 防御側
+        const eRankForSide = isCrit && ctx.eRankRaw[c] > 0 ? 0 : ctx.eRankRaw[c];
+        const eRankClampedCrit = isCrit && ctx.eRankRaw[c] > 0;
+        const eRankDispName = eRankClampedCrit
+            ? `+${ctx.eRankRaw[c]}段階(急所)`
+            : eRankForSide >= 0 ? `+${eRankForSide}段階` : `-${Math.abs(eRankForSide)}段階`;
+        const defCols = [
+            {cat: ctx.enStatTypeName, name:'実数値', val: fmt(ctx.eDef[c])},
+            {cat:'敵ランク補正', name: eRankDispName, val: fmt(ctx.eRankMul[c])}
+        ];
+
+        // 列間の演算子
+        const getOp = (i) => {
+            if (i >= cols.length - 1) return null;
+            const cur = cols[i], next = cols[i+1];
+            if (cur.addGrp && next.addGrp && cur.addGrp === next.addGrp) return '+';
+            return '×';
+        };
+
+        let tbl = `<div style="margin-bottom:8px;">`;
+        tbl += `<div style="font-size:10px;font-weight:bold;color:#555;margin-bottom:2px;padding-left:4px;">`;
+        const dmgMin = Math.floor(ctx.dmgResult[c] * 0.9);
+        const dmgMax = ctx.dmgResult[c];
+        tbl += `【${sLabel}】ダメージ: <span style="color:#2e7d32;font-size:12px;">${dmgMin.toLocaleString()}～${dmgMax.toLocaleString()}</span> <span style="color:#999;font-size:10px;">(乱数0.9～1.0倍)</span></div>`;
+        tbl += `<div style="overflow-x:auto;"><table style="border-collapse:collapse;font-size:10px;">`;
+
+        // 行1: カテゴリ
+        {
+            let r1 = '<tr>';
+            let ii = 0;
+            while (ii < cols.length) {
+                const col = cols[ii];
+                const grp = col.addGrp;
+                if (grp) {
+                    let jj = ii;
+                    while (jj < cols.length && cols[jj].addGrp === grp) jj++;
+                    const grpLen = jj - ii;
+                    const cs = grpLen * 2 + 1;
+                    const label = grp==='bp' ? '技威力' : '上昇スキル(%)';
+                    r1 += TH(label, cs);
+                    if (jj < cols.length) r1 += `<th style="border:none;padding:0;"></th>`;
+                    ii = jj;
+                } else {
+                    let cat = col.cat;
+                    let jj = ii;
+                    while (jj < cols.length && cols[jj].cat === cat && !cols[jj].addGrp) jj++;
+                    const span = jj - ii;
+                    const cs = span * 2 - 1;
+                    r1 += TH(cat, cs);
+                    if (jj < cols.length) r1 += `<th style="border:none;padding:0;"></th>`;
+                    ii = jj;
+                }
+            }
+            r1 += `<th style="border:none;padding:0 2px;"></th>`;
+            defCols.forEach((dc, di) => {
+                r1 += TH(dc.cat);
+                if (di < defCols.length-1) r1 += `<th style="border:none;padding:0;"></th>`;
+            });
+            r1 += '</tr>';
+            tbl += r1;
+        }
+
+        // 行2 & 行3
+        let row2 = '<tr style="background:#f5f5f5;">';
+        let row3 = '<tr style="background:#fff;">';
+
+        let i = 0;
+        while (i < cols.length) {
+            const col = cols[i];
+            const grp = col.addGrp;
+
+            if (grp) {
+                let j = i;
+                while (j < cols.length && cols[j].addGrp === grp) j++;
+                const grpCols = cols.slice(i, j);
+
+                row2 += `<td style="${cellStyle('color:#888;font-size:10px;')}">(</td>`;
+                row3 += `<td style="${cellStyle('color:#888;')}">(</td>`;
+                grpCols.forEach((gc, gi) => {
+                    row2 += TD2(gc.name);
+                    row3 += TD2(gc.val, 'font-weight:bold;');
+                    if (gi < grpCols.length-1) {
+                        row2 += OP('+');
+                        row3 += OP('+');
+                    }
+                });
+                row2 += `<td style="${cellStyle('color:#888;font-size:10px;')}">) </td>`;
+                row3 += `<td style="${cellStyle('color:#888;')}">)</td>`;
+
+                if (j < cols.length) {
+                    row2 += OP('×');
+                    row3 += OP('×');
+                }
+                i = j;
+            } else {
+                row2 += TD2(col.name);
+                row3 += TD2(col.val, 'font-weight:bold;');
+                if (i < cols.length-1) {
+                    const op = getOp(i);
+                    const next = cols[i+1];
+                    if (next.addGrp) {
+                        row2 += OP('×');
+                        row3 += OP('×');
+                    } else {
+                        row2 += OP(op);
+                        row3 += OP(op);
+                    }
+                }
+                i++;
+            }
+        }
+
+        row2 += OP('÷');
+        row3 += OP('÷');
+        defCols.forEach((dc, di) => {
+            row2 += TD2(dc.name);
+            row3 += TD2(dc.val, 'font-weight:bold;');
+            if (di < defCols.length-1) {
+                row2 += OP('×');
+                row3 += OP('×');
+            }
+        });
+        row2 += '</tr>';
+        row3 += '</tr>';
+
+        tbl += row2 + row3;
+        tbl += '</table></div></div>';
+        allTablesHtml += tbl;
+    });
+
+    return headerHtml + `<div style="padding:4px 10px 8px;">${allTablesHtml}</div>`;
+}
+
+/* ============================================================
+ * renderEnemyFormula（敵行動行の「ダメージ計算式」テーブル）
+ * 現行 renderEnemyFormula の完全移植。ctx = derived.enemyActionResults[id].ctx
+ * ============================================================ */
+function buildEnemyFormulaHtml(row, ctx) {
+    const isOpen = !!row.formulaOpen;
+    const sideLabel = SIDE_LABEL[ctx.target];
+
+    const headerHtml = `<div style="padding:3px 10px; font-size:10px; color:#666;">
+        <button onclick="actions.toggleFormula('${row.id}')" style="background:none;border:1px solid #ccc;border-radius:3px;cursor:pointer;padding:1px 6px;font-size:11px;">${isOpen ? '－' : '＋'}</button>
+        <span style="margin-left:4px;">ダメージ計算式</span>
+    </div>`;
+
+    if (!isOpen) return headerHtml;
+
+    const hasDmgItems = ctx.items.length > 0;
+    const hasHealItems = SIDE_KEYS.some(c => ctx.healItems && ctx.healItems[c] && ctx.healItems[c].length > 0);
+
+    if (!hasDmgItems && !hasHealItems) {
+        return headerHtml + `<div style="padding:4px 10px 8px; font-size:10px; color:#999;">該当する定数ダメージ・回復はありません</div>`;
+    }
+
+    const fmt = v => Number.isInteger(v) ? v.toLocaleString() : v.toFixed(3).replace(/\.?0+$/, '');
+    const cellStyle = (extra='') => `padding:2px 6px;text-align:center;border:1px solid #ccc;white-space:nowrap;${extra}`;
+    const TH = (txt, cs=1, extra='') => `<th colspan="${cs}" style="${cellStyle('font-weight:bold;background:#fdebee;'+extra)}">${txt}</th>`;
+    const TH_HEAL = (txt, cs=1, extra='') => `<th colspan="${cs}" style="${cellStyle('font-weight:bold;background:#e8f8ed;'+extra)}">${txt}</th>`;
+    const TD = (txt, extra='') => `<td style="${cellStyle(extra)}">${txt}</td>`;
+    const OP = (txt) => `<td style="padding:0 3px;text-align:center;color:#999;font-size:11px;white-space:nowrap;">${txt}</td>`;
+
+    let html = '';
+
+    // ── 状態異常ダメージのテーブル（行動者位置のみ） ──
+    if (hasDmgItems) {
         let tbl = `<div style="margin-bottom:8px;">`;
         tbl += `<div style="font-size:10px;font-weight:bold;color:#c0392b;margin-bottom:2px;padding-left:4px;">`;
         tbl += `【${sideLabel}】定数ダメージ合計: <span style="font-size:12px;">${ctx.totalDmg.toLocaleString()}</span> (最大HP: ${ctx.maxhp.toLocaleString()})</div>`;
         tbl += `<div style="overflow-x:auto;"><table style="border-collapse:collapse;font-size:10px;">`;
 
-        // 行1: カテゴリ（種別名）
+        // 行1: カテゴリ
         tbl += '<tr>';
         ctx.items.forEach((item, i) => {
-            // 列数: 基本/耐性/増加(/弱点/タイプ抵抗 for ダメージの場)
-            let cols = 1; // 基本
-            if(item.res !== null) cols++; // 耐性
-            if(item.inc !== null) cols++; // 増加
-            if(item.type === 'ダメージの場') cols += 2; // 弱点, タイプ抵抗
+            let cols = 1;
+            if (item.res !== null) cols++;
+            if (item.inc !== null) cols++;
+            if (item.type === 'ダメージの場') cols += 2;
             const cs = cols * 2 - 1;
             tbl += TH(item.type, cs);
-            if(i < ctx.items.length-1) tbl += `<th style="border:none;padding:0 4px;"></th>`;
+            if (i < ctx.items.length-1) tbl += `<th style="border:none;padding:0 4px;"></th>`;
         });
         tbl += '</tr>';
 
@@ -1227,13 +2292,13 @@
         tbl += '<tr style="background:#f5f5f5;">';
         ctx.items.forEach((item, i) => {
             tbl += TD('基本');
-            if(item.res !== null) { tbl += OP('×'); tbl += TD(`耐性${item.res}`); }
-            if(item.inc !== null) { tbl += OP('×'); tbl += TD(`増加${item.inc}`); }
-            if(item.type === 'ダメージの場') {
+            if (item.res !== null) { tbl += OP('×'); tbl += TD(`耐性${item.res}`); }
+            if (item.inc !== null) { tbl += OP('×'); tbl += TD(`増加${item.inc}`); }
+            if (item.type === 'ダメージの場') {
                 tbl += OP('×'); tbl += TD(item.weak ? '弱点' : '非弱点');
                 tbl += OP('×'); tbl += TD(`タイプ抵抗${item.typeResist>0?'+'+item.typeResist:item.typeResist}`);
             }
-            if(i < ctx.items.length-1) tbl += OP('+');
+            if (i < ctx.items.length-1) tbl += OP('+');
         });
         tbl += '</tr>';
 
@@ -1241,459 +2306,67 @@
         tbl += '<tr style="background:#fff;">';
         ctx.items.forEach((item, i) => {
             tbl += TD(item.baseFrac, 'font-weight:bold;');
-            if(item.res !== null) { tbl += OP('×'); tbl += TD(fmt(item.resFactor), 'font-weight:bold;'); }
-            if(item.inc !== null) { tbl += OP('×'); tbl += TD(fmt(item.incFactor), 'font-weight:bold;'); }
-            if(item.type === 'ダメージの場') {
+            if (item.res !== null) { tbl += OP('×'); tbl += TD(fmt(item.resFactor), 'font-weight:bold;'); }
+            if (item.inc !== null) { tbl += OP('×'); tbl += TD(fmt(item.incFactor), 'font-weight:bold;'); }
+            if (item.type === 'ダメージの場') {
                 tbl += OP('×'); tbl += TD(fmt(item.weakFactor), 'font-weight:bold;');
                 tbl += OP('×'); tbl += TD(fmt(item.typeResistFactor), 'font-weight:bold;');
             }
-            if(i < ctx.items.length-1) tbl += OP('+');
+            if (i < ctx.items.length-1) tbl += OP('+');
         });
         tbl += '</tr>';
 
         tbl += '</table></div></div>';
-        fRow.innerHTML = headerHtml + `<div style="padding:4px 10px 8px;">${tbl}</div>`;
+        html += tbl;
     }
 
-    function renderFormula(row, ctx) {
-        const fRow = row.querySelector('.formula-row');
-        if(!fRow) return;
-        const isOpen = fRow.dataset.open === 'true';
+    // ── 回復のテーブル（サイドごと。回復項目があるサイドのみ表示） ──
+    if (hasHealItems) {
+        SIDE_KEYS.forEach(c => {
+            const healList = ctx.healItems[c];
+            if (!healList || healList.length === 0) return;
 
-        const headerHtml = `<div style="padding:3px 10px; font-size:10px; color:#666;">
-            <button onclick="toggleFormula(this)" style="background:none;border:1px solid #ccc;border-radius:3px;cursor:pointer;padding:1px 6px;font-size:11px;">${isOpen ? '－' : '＋'}</button>
-            <span style="margin-left:4px;">ダメージ計算式</span>
-        </div>`;
-        if(!isOpen) { fRow.innerHTML = headerHtml; return; }
-
-        const fmt = v => {
-            if(typeof v !== 'number') return String(v);
-            if(Number.isInteger(v)) return v.toLocaleString();
-            // 既約分数チェック
-            const pairs = [[2,3,'2/3'],[1,2,'1/2']];
-            for(const [n,d,s] of pairs) if(Math.abs(v - n/d) < 0.0001) return s;
-            return v.toFixed(4).replace(/\.?0+$/, '');
-        };
-
-        const tChecked = [row.querySelector('.t-l').checked, row.querySelector('.t-c').checked, row.querySelector('.t-r').checked];
-        const sideKeys   = ['l','c','r'];
-        const sideLabels = ['左','中','右'];
-        const activeSides = sideKeys.filter((_,i) => tChecked[i]);
-        if(activeSides.length === 0) { fRow.innerHTML = headerHtml; return; }
-
-        // ── 列定義型: {cat, name, val}
-        // cat が同じ隣接列は1行目でセル結合する
-
-        // TD/TH ヘルパー
-        const cellStyle = (extra='') =>
-            `padding:2px 6px;text-align:center;border:1px solid #ccc;white-space:nowrap;${extra}`;
-        const TH = (txt, cs=1, extra='') =>
-            `<th colspan="${cs}" style="${cellStyle('font-weight:bold;background:#e3f2fd;'+extra)}">${txt}</th>`;
-        const TD2 = (txt, extra='') =>
-            `<td style="${cellStyle(extra)}">${txt}</td>`;
-        const OP = (txt) =>
-            `<td style="padding:0 3px;text-align:center;color:#999;font-size:11px;white-space:nowrap;">${txt}</td>`;
-
-        let allTablesHtml = '';
-
-        activeSides.forEach(c => {
-            const si = sideKeys.indexOf(c);
-            const sLabel = sideLabels[si];
-
-            // ── このサイドの急所を考慮した攻撃ランク ──
-            const isCrit = ctx.critActive[c];
-            const atkRankForSide = (isCrit && ctx.atkRankRaw < 0) ? 0 : ctx.atkRankRaw;
-            const atkRankClamped = isCrit && ctx.atkRankRaw < 0;
-            const atkRankDispBase = atkRankForSide >= 0 ? `+${atkRankForSide}段階` : `-${Math.abs(atkRankForSide)}段階`;
-            const atkRankDisp = atkRankClamped
-                ? `-${Math.abs(ctx.atkRankRaw)}段階(急所)`
-                : atkRankDispBase;
-            const atkRankMul = rankTable[String(atkRankForSide)];
-
-            // ── 列リストを構築 ──
-            // 各要素: {cat, name, val, addPct}
-            // addPct=true のとき val は "+XX%" 形式で、加算グループ扱い
-            const cols = [];
-
-            // 攻撃/特攻
-            cols.push({cat: ctx.statTypeName, name:'実数値', val: fmt(ctx.baseStat)});
-
-            // 自ランク補正（急所でマイナスが0になる場合を反映）
-            cols.push({cat:'ランク補正', name: atkRankDisp, val: fmt(atkRankMul)});
-
-            // ── BP加算グループ（括弧でくくる） ──
-            // 基礎威力
-            cols.push({cat:'技威力', name:'技威力', val: fmt(ctx.bpRaw), addGrp:'bp'});
-            // BSB
-            if(ctx.bsbBp !== 0)
-                cols.push({cat:'技威力', name:'BSB', val: fmt(ctx.bsbBp), addGrp:'bp'});
-
-            // ── 上昇スキル%加算グループ ──
-            const skillAddItems = [];
-            if(ctx.bstLevel > 0)
-                skillAddItems.push({name:`ブースト${ctx.bstLevel}段階`, val:'+'+fmt(ctx.bstLevel * ctx.bstRate)+'%'});
-            ctx.skillNames.forEach(n => {
-                const m = n.match(/^(.+)\+(\d+)%$/);
-                if(m) skillAddItems.push({name: m[1], val:'+'+m[2]+'%'});
-            });
-            ctx.masterNames.forEach(n => {
-                const m = n.match(/^(.+)\+(\d+)%$/);
-                if(m) skillAddItems.push({name: m[1], val:'+'+m[2]+'%'});
-            });
-            skillAddItems.forEach(item =>
-                cols.push({cat:'上昇スキル', name: item.name, val: item.val, addGrp:'skill'})
-            );
-
-            // ── 乗算系 ──
-            // ボルテージ
-            if(ctx.volt > 0)
-                cols.push({cat:'ボルテージ', name:`${ctx.volt}段階`, val: fmt((ctx.volt+2)/2)});
-
-            // 技内蔵効果
-            if(ctx.effMul !== 100)
-                cols.push({cat:'技内蔵効果', name:'技倍率', val: fmt(ctx.effMul/100)});
-
-            // 応援
-            if(ctx.isCheer)
-                cols.push({cat:'応援', name:'応援', val:'1.5'});
-
-            // スキル装備
-            const skVal = ctx.isB ? ctx.skB : (!ctx.isBD ? ctx.skP : 0);
-            if(skVal > 0)
-                cols.push({cat:'スキル装備', name: ctx.isB ? 'B技スキル装備' : 'スキル装備', val: fmt(1+skVal/100)});
-
-            // WTZ
-            ctx.wtzNames.forEach(n =>
-                cols.push({cat:'WTZ', name: n, val: n==='EXWTZ'?'3':'1.5'})
-            );
-
-            // タイプ抵抗（このサイド分）
-            const rmap = {0.625:'+3', 0.666:'+2', 0.769:'+1', 1.3:'-1', 1.5:'-2', 1.6:'-3'};
-            const resistMultiSide = {l:ctx.resistMulti_l, c:ctx.resistMulti_c, r:ctx.resistMulti_r}[c];
-            ctx.resistNames[c].forEach(n => {
-                const suffix = n.replace('抵抗','');
-                const rv = {'+3':0.625,'+2':0.666,'+1':0.769,'-1':1.3,'-2':1.5,'-3':1.6}[suffix];
-                cols.push({cat:'タイプ抵抗', name: n, val: rv!==undefined?fmt(rv):n});
-            });
-
-            // サークル（複数あれば個別に乗算列として並べる）
-            ctx.circleNames.forEach((cn, ci) => {
-                cols.push({cat:'サークル', name: cn, val: fmt(ctx.circleMults[ci])});
-            });
-
-            // タイプガード（サイド別）
-            const reduceSkillMultiSide = {l:ctx.reduceSkillMulti_l, c:ctx.reduceSkillMulti_c, r:ctx.reduceSkillMulti_r}[c];
-            if(reduceSkillMultiSide !== 1.0) {
-                const cnt = Math.max(1, Math.round(Math.log(reduceSkillMultiSide) / Math.log(0.7)));
-                for(let ki=0; ki<cnt; ki++)
-                    cols.push({cat:'タイプガード', name:'タイプガード'+(cnt>1?` (${ki+1})`:''), val:'0.7'});
-            }
-
-            // 火傷
-            if(ctx.burnActive)
-                cols.push({cat:'火傷', name:'火傷(物理)', val:'0.8'});
-
-            // 威力分散
-            if(ctx.split !== 1)
-                cols.push({cat:'威力分散', name: `${ctx.tCnt}体`, val: fmt(ctx.split)});
-
-            // ── サイド別補正 ──
-            if(isCrit)
-                cols.push({cat:'急所', name:'急所', val:'1.5'});
-            if(ctx.breakActive[c])
-                cols.push({cat:'ブレイク', name: ctx.mCat==='physical'?'物理ブレイク':'特殊ブレイク', val:'1.5'});
-            if(ctx.superEffActive && ctx.weakActive[c])
-                cols.push({cat:'次回抜群', name:'次回抜群', val:'1.5'});
-            if(ctx.reduceStatActive && !isCrit)
-                cols.push({cat:'物理/特殊軽減', name: ctx.mCat==='physical'?'物理壁':'特殊壁', val:'2/3'});
-            if(ctx.ngActive[c])
-                cols.push({cat:'次回ダメ防御', name:'次回ダメ防御', val:(ctx.isB||ctx.isBD)?'0.5':'0'});
-            if(ctx.otherVals[c] !== 1)
-                cols.push({cat:'その他', name:'その他', val: fmt(ctx.otherVals[c])});
-            if(ctx.weakActive[c])
-                cols.push({cat:'弱点', name:'弱点', val:'2'});
-
-            // ── 防御側 ──
-            const eRankForSide = isCrit && ctx.eRankRaw[c] > 0 ? 0 : ctx.eRankRaw[c];
-            const eRankClampedCrit = isCrit && ctx.eRankRaw[c] > 0;
-            const eRankDispName = eRankClampedCrit
-                ? `+${ctx.eRankRaw[c]}段階(急所)`
-                : eRankForSide >= 0 ? `+${eRankForSide}段階` : `-${Math.abs(eRankForSide)}段階`;
-            const defCols = [
-                {cat: ctx.enStatTypeName, name:'実数値', val: fmt(ctx.eDef[c])},
-                {cat:'敵ランク補正', name: eRankDispName, val: fmt(ctx.eRankMul[c])}
-            ];
-
-            // ── 表生成 ──
-            // 列間の演算子を決める関数
-            const getOp = (i) => {
-                if(i >= cols.length - 1) return null;
-                const cur  = cols[i];
-                const next = cols[i+1];
-                const curGrp  = cur.addGrp;
-                const nextGrp = next.addGrp;
-                if(curGrp && nextGrp && curGrp === nextGrp) return '+'; // 同グループ内
-                return '×'; // グループをまたぐか通常乗算
-            };
+            const totalHeal = healList.reduce((sum, h) => sum + h.amount, 0);
+            const mhp = ctx.maxhp; // 行動者位置の最大HPしかctxに無いため、表示は割合のみに留める
 
             let tbl = `<div style="margin-bottom:8px;">`;
-            tbl += `<div style="font-size:10px;font-weight:bold;color:#555;margin-bottom:2px;padding-left:4px;">`;
-            const dmgMin = Math.floor(ctx.dmgResult[c] * 0.9);
-            const dmgMax = ctx.dmgResult[c];
-            tbl += `【${sLabel}】ダメージ: <span style="color:#2e7d32;font-size:12px;">${dmgMin.toLocaleString()}～${dmgMax.toLocaleString()}</span> <span style="color:#999;font-size:10px;">(乱数0.9～1.0倍)</span></div>`;
+            tbl += `<div style="font-size:10px;font-weight:bold;color:#27ae60;margin-bottom:2px;padding-left:4px;">`;
+            tbl += `【${SIDE_LABEL[c]}】回復合計: <span class="heal-text" style="font-size:12px;">+${totalHeal.toLocaleString()}</span></div>`;
             tbl += `<div style="overflow-x:auto;"><table style="border-collapse:collapse;font-size:10px;">`;
 
-            // ── 行1: カテゴリ（行2/3と同じ列構造に合わせてcolspan計算） ──
-            // 行2/3と完全に同じ列構造をシミュレートして、カテゴリのcolspanを求める
-            // 各グループのセル列数を数える
-            {
-                let r1 = '<tr>';
-                let ii = 0;
-                while(ii < cols.length) {
-                    const col = cols[ii];
-                    const grp = col.addGrp;
-                    if(grp) {
-                        let jj = ii;
-                        while(jj < cols.length && cols[jj].addGrp === grp) jj++;
-                        const grpLen = jj - ii;
-                        // 括弧( + 各列 + 各op + 括弧) = 1 + grpLen + (grpLen-1) + 1 = grpLen*2+1
-                        const cs = grpLen * 2 + 1;
-                        const label = grp==='bp' ? '技威力' : '上昇スキル(%)';
-                        r1 += TH(label, cs);
-                        if(jj < cols.length) r1 += `<th style="border:none;padding:0;"></th>`; // ×演算子セル
-                        ii = jj;
-                    } else {
-                        // 同カテゴリ連続をまとめる
-                        let cat = col.cat;
-                        let jj = ii;
-                        while(jj < cols.length && cols[jj].cat === cat && !cols[jj].addGrp) jj++;
-                        const span = jj - ii;
-                        // 各列+間のop = span + (span-1)
-                        const cs = span * 2 - 1;
-                        r1 += TH(cat, cs);
-                        if(jj < cols.length) r1 += `<th style="border:none;padding:0;"></th>`; // 演算子セル
-                        ii = jj;
-                    }
-                }
-                r1 += `<th style="border:none;padding:0 2px;"></th>`; // ÷
-                defCols.forEach((dc, di) => {
-                    r1 += TH(dc.cat);
-                    if(di < defCols.length-1) r1 += `<th style="border:none;padding:0;"></th>`;
-                });
-                r1 += '</tr>';
-                tbl += r1;
-            }
-
-            // ── 行2 & 行3 ──
-            // 列をフラット（名前行・数値行を同時生成）
-            let row2 = '<tr style="background:#f5f5f5;">';
-            let row3 = '<tr style="background:#fff;">';
-
-            // 括弧グループを検出して行2/3を生成
-            let i = 0;
-            while(i < cols.length) {
-                const col = cols[i];
-                const grp = col.addGrp;
-
-                if(grp) {
-                    // グループの終端を探す
-                    let j = i;
-                    while(j < cols.length && cols[j].addGrp === grp) j++;
-                    const grpCols = cols.slice(i, j);
-
-                    // 行2: ( name1 + name2 + ... )
-                    row2 += `<td style="${cellStyle('color:#888;font-size:10px;')}">(</td>`;
-                    row3 += `<td style="${cellStyle('color:#888;')}">(</td>`;
-                    grpCols.forEach((gc, gi) => {
-                        row2 += TD2(gc.name);
-                        row3 += TD2(gc.val, 'font-weight:bold;');
-                        if(gi < grpCols.length-1) {
-                            row2 += OP('+');
-                            row3 += OP('+');
-                        }
-                    });
-                    row2 += `<td style="${cellStyle('color:#888;font-size:10px;')}">) </td>`;
-                    row3 += `<td style="${cellStyle('color:#888;')}">)</td>`;
-
-                    // グループ後の演算子
-                    if(j < cols.length) {
-                        row2 += OP('×');
-                        row3 += OP('×');
-                    }
-                    i = j;
-                } else {
-                    row2 += TD2(col.name);
-                    row3 += TD2(col.val, 'font-weight:bold;');
-                    if(i < cols.length-1) {
-                        const op = getOp(i);
-                        const next = cols[i+1];
-                        if(next.addGrp) {
-                            row2 += OP('×');
-                            row3 += OP('×');
-                        } else {
-                            row2 += OP(op);
-                            row3 += OP(op);
-                        }
-                    }
-                    i++;
-                }
-            }
-
-            // ÷ + 防御列
-            row2 += OP('÷');
-            row3 += OP('÷');
-            defCols.forEach((dc, di) => {
-                row2 += TD2(dc.name);
-                row3 += TD2(dc.val, 'font-weight:bold;');
-                if(di < defCols.length-1) {
-                    row2 += OP('×');
-                    row3 += OP('×');
-                }
+            // 行1: カテゴリ
+            tbl += '<tr>';
+            healList.forEach((item, i) => {
+                tbl += TH_HEAL(item.type, 1);
+                if (i < healList.length-1) tbl += `<th style="border:none;padding:0 4px;"></th>`;
             });
-            row2 += '</tr>';
-            row3 += '</tr>';
+            tbl += '</tr>';
 
-            tbl += row2 + row3;
+            // 行2: ラベル
+            tbl += '<tr style="background:#f5f5f5;">';
+            healList.forEach((item, i) => {
+                tbl += TD('基本');
+                if (i < healList.length-1) tbl += OP('+');
+            });
+            tbl += '</tr>';
+
+            // 行3: 数値
+            tbl += '<tr style="background:#fff;">';
+            healList.forEach((item, i) => {
+                tbl += TD(item.baseFrac, 'font-weight:bold;color:#27ae60;');
+                if (i < healList.length-1) tbl += OP('+');
+            });
+            tbl += '</tr>';
+
             tbl += '</table></div></div>';
-            allTablesHtml += tbl;
+            html += tbl;
         });
-
-        fRow.innerHTML = headerHtml + `<div style="padding:4px 10px 8px;">${allTablesHtml}</div>`;
     }
 
-    function toggleFormula(btn) {
-        const fRow = btn.closest('.formula-row');
-        fRow.dataset.open = fRow.dataset.open === 'true' ? 'false' : 'true';
-        // allCalculateを呼んで再描画
-        allCalculate();
-    }
+    return headerHtml + `<div style="padding:4px 10px 8px;">${html}</div>`;
+}
 
-    function syncMoveType(sel) {
-        const row = sel.closest('.action-row');
-        const isPhys = sel.value==='physical';
-        row.querySelector('.my-stat-type').value = isPhys?'atk':'spatk';
-        row.querySelector('.en-stat-type').value = isPhys?'def':'spdef';
-        allCalculate();
-    }
-    function handleTargetChange(chk) {
-        const row = chk.closest('.action-row');
-        const zone = row.querySelector('.no-split-zone');
-        const cnt = [row.querySelector('.t-l').checked, row.querySelector('.t-c').checked, row.querySelector('.t-r').checked].filter(v=>v).length;
-        const existing = zone.querySelector('.no-split-chk');
-        const prevChecked = existing ? existing.checked : (zone.dataset.noSplit === 'true');
-        if(cnt >= 2) {
-            zone.innerHTML = `<label><input type="checkbox" class="no-split-chk" onchange="allCalculate()"> 分散なし</label>`;
-            zone.querySelector('.no-split-chk').checked = prevChecked;
-        } else {
-            zone.dataset.noSplit = prevChecked;
-            zone.innerHTML = '';
-        }
-        allCalculate();
-    }
-    function addSkill(btn, name="", val=0) {
-        const div = document.createElement('div');
-        div.style.display="flex"; div.style.marginBottom="2px";
-        div.innerHTML = `<input type="text" value="${name}" placeholder="スキル" style="width:60%" oninput="allCalculate()"><input type="number" class="skill-val" value="${val}" style="width:30%" oninput="allCalculate()">% <span style="cursor:pointer" onclick="this.parentElement.remove();allCalculate();">×</span>`;
-        btn.previousElementSibling.appendChild(div);
-    }
-    function moveRow(id, mode) {
-        const el = document.getElementById(id);
-        const p = el.parentNode;
-        if(mode==='top') p.prepend(el);
-        else if(mode==='bottom') p.append(el);
-        else if(mode==='up' && el.previousElementSibling) p.insertBefore(el, el.previousElementSibling);
-        else if(mode==='down' && el.nextElementSibling) p.insertBefore(el.nextElementSibling, el);
-        allCalculate();
-    }
 
-    function copyRow(id) {
-        const original = document.getElementById(id);
-        addActionRow();
-        const rows = document.querySelectorAll('.action-row');
-        const target = rows[rows.length - 1];
-        const originalType = original.querySelector('.move-type:checked').value;
-
-        // 各種値のコピー
-        target.querySelector('.buddy-select').value = original.querySelector('.buddy-select').value;
-        target.querySelector('.move-name').value = original.querySelector('.move-name').value;
-        target.querySelector('.move-cat').value = original.querySelector('.move-cat').value;
-        target.querySelector('.my-stat-type').value = original.querySelector('.my-stat-type').value;
-        target.querySelector('.my-rank').value = original.querySelector('.my-rank').value;
-        target.querySelector('.en-stat-type').value = original.querySelector('.en-stat-type').value;
-        target.querySelector('.en-rank-l').value = original.querySelector('.en-rank-l').value;
-        target.querySelector('.en-rank-c').value = original.querySelector('.en-rank-c').value;
-        target.querySelector('.en-rank-r').value = original.querySelector('.en-rank-r').value;
-        target.querySelector('.bp').value = original.querySelector('.bp').value;
-        target.querySelector('.bsb-bp').value = original.querySelector('.bsb-bp').value;
-        target.querySelector('.eff-mul').value = original.querySelector('.eff-mul').value;
-        target.querySelector('.t-l').checked = original.querySelector('.t-l').checked;
-        target.querySelector('.t-c').checked = original.querySelector('.t-c').checked;
-        target.querySelector('.t-r').checked = original.querySelector('.t-r').checked;
-        target.querySelector('.w-l').checked = original.querySelector('.w-l').checked;
-        target.querySelector('.w-c').checked = original.querySelector('.w-c').checked;
-        target.querySelector('.w-r').checked = original.querySelector('.w-r').checked;
-        target.querySelector('.boost').value = original.querySelector('.boost').value;
-        target.querySelector('.crit-l').checked = original.querySelector('.crit-l').checked;
-        target.querySelector('.crit-c').checked = original.querySelector('.crit-c').checked;
-        target.querySelector('.crit-r').checked = original.querySelector('.crit-r').checked;
-        target.querySelector('.volt-val').value = original.querySelector('.volt-val').value;
-        target.querySelector(`.move-type[value="${originalType}"]`).checked = true;
-
-        // スキルリストのコピー
-        const originalSkills = original.querySelectorAll('.skill-list div');
-        originalSkills.forEach(s => {
-            addSkill(target.querySelector('.col-skills .btn-op'), s.querySelector('input[type="text"]').value, s.querySelector('.skill-val').value);
-        });
-
-        // オプション（二段目）のコピー
-        const originalOpts = original.querySelectorAll('.dynamic-opts .opt-box');
-        originalOpts.forEach(o => {
-            addOption(target.id, o.dataset.type);
-            const targetOpt = target.querySelectorAll('.dynamic-opts .opt-box');
-            const lastOpt = targetOpt[targetOpt.length-1];
-            // 各セレクトボックス等の値を同期
-            const selects = o.querySelectorAll('select');
-            const targetSelects = lastOpt.querySelectorAll('select');
-            selects.forEach((s, idx) => targetSelects[idx].value = s.value);
-            const inputs = o.querySelectorAll('input');
-            const targetInputs = lastOpt.querySelectorAll('input');
-            inputs.forEach((i, idx) => {
-                if(i.type === 'checkbox') targetInputs[idx].checked = i.checked;
-                else targetInputs[idx].value = i.value;
-            });
-        });
-
-        // ターゲット変更前に、コピー元のno-split状態を取得して保存
-        const oZone = original.querySelector('.no-split-zone');
-        const oNoSplitChk = oZone.querySelector('.no-split-chk');
-        const oNoSplitVal = oNoSplitChk ? oNoSplitChk.checked : (oZone.dataset.noSplit === 'true');
-
-        ['.t-l', '.t-c', '.t-r'].forEach(sel => {target.querySelector(sel).dispatchEvent(new Event('change'));});
-
-        // 威力分散なし状態のコピー（チェックボックスがあれば直接、なければdata属性経由で）
-        const tZone = target.querySelector('.no-split-zone');
-        const tNoSplitChk = tZone.querySelector('.no-split-chk');
-        if(tNoSplitChk) {
-            tNoSplitChk.checked = oNoSplitVal;
-        } else {
-            tZone.dataset.noSplit = oNoSplitVal;
-        }
-
-        const oComment =
-            original.querySelector('.comment-text');
-
-        if(oComment) {
-
-            addOption(target.id, 'Comment');
-
-            target.querySelector('.comment-text').value =
-                oComment.value;
-        }
-        
-        allCalculate();
-    }
-
-    window.onload = init;
 </script>
 </body>
 </html>
