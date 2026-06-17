@@ -9,12 +9,13 @@
         .container { max-width: 1750px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
         .section-title { border-left: 5px solid #3498db; padding-left: 10px; margin: 20px 0 10px; font-weight: bold; font-size: 1.2em; }
 
-        .enemy-settings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: #ffebee; padding: 15px; border-radius: 8px; border: 1px solid #ef9a9a; }
-        .enemy-card { background: rgba(255,255,255,0.5); padding: 8px; border-radius: 6px; }
-        .team-settings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: #e3f2fd; padding: 15px; border-radius: 8px; border: 1px solid #90caf9; }
-        .buddy-card { background: rgba(255,255,255,0.5); padding: 10px; border-radius: 6px; }
+        .enemy-settings { background: #ffebee; padding: 15px; border-radius: 8px; border: 1px solid #ef9a9a; }
+        .enemy-cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+        .enemy-card { background: rgba(255,255,255,0.5); padding: 8px; border-radius: 6px; min-width: 0; }
+        .team-settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; background: #e3f2fd; padding: 15px; border-radius: 8px; border: 1px solid #90caf9; }
+        .buddy-card { background: rgba(255,255,255,0.5); padding: 10px; border-radius: 6px; min-width: 0; }
         .buddy-main { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed #90caf9; }
-        .buddy-stat-row { display: flex; align-items: center; gap: 5px; margin-top: 5px; }
+        .buddy-stat-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 5px; }
         .buddy-stat-row input { width: 45px; }
 
         .common-buffs { background:#fffde7; padding:12px; border-radius:8px; margin-bottom:20px; border:1px solid #fff59d; }
@@ -497,7 +498,7 @@ function renderEnemySettings() {
     const root = document.getElementById('enemy-root');
 
     // プリセット欄（3体共通・1個）
-    const presetHtml = `<div style="grid-column:1/-1; margin-bottom:4px; display:flex; align-items:center; gap:8px;">
+    const presetHtml = `<div style="margin-bottom:8px; display:flex; align-items:center; gap:8px;">
         <span style="font-weight:bold; font-size:11px; color:#c0392b;">プリセット</span>
         <select onchange="actions.applyEnemyPreset(this.value)" style="padding:3px 6px;">
             <option value="">選択</option>
@@ -516,14 +517,16 @@ function renderEnemySettings() {
         return `
             <div class="enemy-card">
                 <div style="font-weight:bold; margin-bottom:5px;">${sideLabel}</div>
-                <div style="border-top:1px solid #ddd; padding-top:5px; display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
-                    防御: <input type="number" value="${e.def}" oninput="actions.setEnemyField('${c}','def',this.value)"> ダウン耐性: <select onchange="actions.setEnemyField('${c}','resDef',this.value)">${[0,1,2,3,4,5,6,7,8,9,10].map(v=>`<option value="${v}" ${v===e.resDef?'selected':''}>${v}</option>`).join('')}</select>
+                <div style="border-top:1px solid #ddd; padding-top:5px; display:flex; flex-wrap:wrap; align-items:center; gap:4px; margin-bottom:3px;">
+                    <span style="white-space:nowrap;">防御: <input type="number" value="${e.def}" style="width:55px" oninput="actions.setEnemyField('${c}','def',this.value)"></span>
+                    <span style="white-space:nowrap;">ダウン耐性: <select style="width:50px" onchange="actions.setEnemyField('${c}','resDef',this.value)">${[0,1,2,3,4,5,6,7,8,9,10].map(v=>`<option value="${v}" ${v===e.resDef?'selected':''}>${v}</option>`).join('')}</select></span>
                 </div>
-                <div style="border-top:1px solid #ddd; padding-top:5px; display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
-                    特防: <input type="number" value="${e.spdef}" oninput="actions.setEnemyField('${c}','spdef',this.value)"> ダウン耐性: <select onchange="actions.setEnemyField('${c}','resSpdef',this.value)">${[0,1,2,3,4,5,6,7,8,9,10].map(v=>`<option value="${v}" ${v===e.resSpdef?'selected':''}>${v}</option>`).join('')}</select>
+                <div style="border-top:1px solid #ddd; padding-top:5px; display:flex; flex-wrap:wrap; align-items:center; gap:4px; margin-bottom:5px;">
+                    <span style="white-space:nowrap;">特防: <input type="number" value="${e.spdef}" style="width:55px" oninput="actions.setEnemyField('${c}','spdef',this.value)"></span>
+                    <span style="white-space:nowrap;">ダウン耐性: <select style="width:50px" onchange="actions.setEnemyField('${c}','resSpdef',this.value)">${[0,1,2,3,4,5,6,7,8,9,10].map(v=>`<option value="${v}" ${v===e.resSpdef?'selected':''}>${v}</option>`).join('')}</select></span>
                 </div>
-                <div style="border-top:1px solid #ddd; padding-top:5px; display:flex; justify-content:space-between; align-items:center;">
-                    最大HP: <input type="number" value="${e.maxHp != null ? e.maxHp : ''}" placeholder="任意" style="width:100px" oninput="actions.setEnemyField('${c}','maxHp',this.value)">
+                <div style="border-top:1px solid #ddd; padding-top:5px; display:flex; flex-wrap:wrap; align-items:center; gap:4px;">
+                    最大HP: <input type="number" value="${e.maxHp != null ? e.maxHp : ''}" placeholder="任意" style="width:90px" oninput="actions.setEnemyField('${c}','maxHp',this.value)">
                 </div>
                 <div style="border-top:1px solid #ddd; padding-top:5px; margin-top:5px;">
                     <div style="font-size:10px; color:#999; margin-bottom:2px;">耐性(状態異常等)初期値</div>
@@ -537,7 +540,7 @@ function renderEnemySettings() {
             </div>`;
     }).join('');
 
-    root.innerHTML = presetHtml + cardsHtml;
+    root.innerHTML = presetHtml + `<div class="enemy-cards-grid">${cardsHtml}</div>`;
 }
 
 // ---- 味方バディーズ設定 ----
