@@ -34,18 +34,19 @@
         .col-targets { width: 140px; }
         .col-boost { width: 60px; }
         .col-skills { flex: 1; min-width: 150px; }
-        .col-res { width: 180px; }
-        .col-delete { width: 30px; display: flex; justify-content: center; }
 
         .opt-box { display: flex; align-items: center; gap: 5px; background: #f1f3f4; border-radius: 15px; padding: 4px 12px; border: 1px solid #dadce0; font-size: 10px; }
         .opt-box.permanent { background: #e8f0fe; border-color: #aecbfa; }
         .opt-del { cursor: pointer; color: #999; font-weight: bold; margin-left: 5px; }
         .opt-del:hover { color: #ff0000; }
 
-        .res-table { width: 100%; text-align: center; border-collapse: collapse; background: #e8f5e9; border: 1px solid #c8e6c9; }
-        .res-table th { font-size: 9px; color: #666; font-weight: normal; border-bottom: 1px solid #c8e6c9; }
-        .res-table td { font-size: 12px; font-weight: bold; padding: 3px 0; }
-        .res-table th:not(:last-child), .res-table td:not(:last-child) { border-right: 1px solid #c8e6c9; }
+        .action-side-panel { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
+        .res-table-v { width: 100%; border-collapse: collapse; background: #e8f5e9; border: 1px solid #c8e6c9; }
+        .res-table-v th { font-size: 9px; color: #666; font-weight: normal; text-align: left; padding: 2px 8px; white-space: nowrap; border-right: 1px solid #c8e6c9; }
+        .res-table-v td { font-size: 12px; font-weight: bold; padding: 2px 8px; text-align: right; white-space: nowrap; }
+        .res-table-v tr:not(:last-child) th, .res-table-v tr:not(:last-child) td { border-bottom: 1px solid #c8e6c9; }
+        .bc-block { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10px; color: #666; }
+        .bc-block input { width: 45px; text-align: center; }
 
         input, select { padding: 4px; border: 1px solid #ccc; border-radius: 4px; }
         .btn-op { font-size: 9px; cursor: pointer; padding: 2px 4px; }
@@ -281,6 +282,9 @@ function createInitialActionRow() {
         crit: { l:true, c:true, r:true },
         volt: 0,
 
+        bcBefore: 9,
+        bcAfter: 8,
+
         dynamicOptions: [], // 各種 { id, type, ... }
 
         comment: null, // null=未追加, 文字列=コメント本文
@@ -440,6 +444,10 @@ function migrateActionList(actionList) {
             }
             if (row.dmgTypeOpen === undefined) row.dmgTypeOpen = false;
             if (row.healOpen === undefined) row.healOpen = false;
+        } else if (item.rowType === 'action') {
+            const row = item.data;
+            if (row.bcBefore === undefined) row.bcBefore = 9;
+            if (row.bcAfter === undefined) row.bcAfter = 8;
         }
     });
 }
@@ -1161,6 +1169,13 @@ function createOptionDefault(type) {
     }
 }
 
+// BC（B技カウント）の次の値を算出する：行動前=前回の行動後を継承、行動後=1減算（0の次はmod-1に戻る）
+function computeNextBC(prevAfter, mod, defaultBefore) {
+    const beforeBC = (prevAfter !== undefined && prevAfter !== '' && prevAfter !== null) ? Number(prevAfter) : defaultBefore;
+    const afterBC = ((beforeBC - 1) % mod + mod) % mod;
+    return { before: beforeBC, after: afterBC };
+}
+
 const actions = {
 
     // ---- グローバル設定 ----
@@ -1341,6 +1356,14 @@ const actions = {
         // バディーズ名のデフォルトは「バディーズ1」（buddyCards[0]の本体名、
         // 未入力なら派生名 "バディーズ1" にフォールバック）
         row.buddyName = deriveBuddyOptions()[0]?.name || 'バディーズ1';
+
+        // BC: 直前の味方行動行のBC(行動後)を継承し、1ずつ減算（0の次は9）。敵行動行とは独立して参照する。
+        const actionRows = state.actionList.filter(it => it.rowType === 'action');
+        const prevActionRow = actionRows.length > 0 ? actionRows[actionRows.length - 1].data : null;
+        const bc = computeNextBC(prevActionRow ? prevActionRow.bcAfter : undefined, 10, 9);
+        row.bcBefore = bc.before;
+        row.bcAfter = bc.after;
+
         state.actionList.push({ rowType: 'action', data: row });
         render();
     },
@@ -1357,15 +1380,12 @@ const actions = {
         row.poison.inc = defaults.poison;
         row.burn.inc = defaults.burn;
 
-        // BC: 直前の敵行動行のBC(行動後)を継承し、1ずつ減算（0の次は6）
+        // BC: 直前の敵行動行のBC(行動後)を継承し、1ずつ減算（0の次は9）。味方行動行とは独立して参照する。
         const enemyRows = state.actionList.filter(it => it.rowType === 'enemy');
-        const prevRow = enemyRows.length > 0 ? enemyRows[enemyRows.length - 1].data : null;
-        let beforeBC = 6;
-        if (prevRow) {
-            beforeBC = prevRow.bcAfter !== '' && prevRow.bcAfter != null ? Number(prevRow.bcAfter) : 6;
-        }
-        row.bcBefore = beforeBC;
-        row.bcAfter = ((beforeBC - 1) % 7 + 7) % 7;
+        const prevEnemyRow = enemyRows.length > 0 ? enemyRows[enemyRows.length - 1].data : null;
+        const bc = computeNextBC(prevEnemyRow ? prevEnemyRow.bcAfter : undefined, 7, 6);
+        row.bcBefore = bc.before;
+        row.bcAfter = bc.after;
 
         state.actionList.push({ rowType: 'enemy', data: row });
         render();
@@ -1439,7 +1459,7 @@ const actions = {
     // ---- 味方行動行：各フィールド更新 ----
     setActionField(id, field, value) {
         const { row } = findActionListItem(id);
-        const numericFields = ['bp','bsbBp','effMul','boost','volt','myRank'];
+        const numericFields = ['bp','bsbBp','effMul','boost','volt','myRank','bcBefore','bcAfter'];
         if (field === 'myRank') {
             row.myRank = Number(value);
         } else if (numericFields.includes(field)) {
@@ -1788,14 +1808,18 @@ function buildActionRowHtml(row, index) {
                     <button class="btn-op" onclick="actions.addSkill('${id}')" style="width:100%">+スキル</button>
                 </div>
                 </div>
-                <div style="display:flex; gap:8px; margin-left:auto; flex-shrink:0;">
-                <div class="col-res">
-                    <table class="res-table">
-                        <tr><th>左</th><th>中</th><th>右</th></tr>
-                        <tr><td>${resVal('l')}</td><td>${resVal('c')}</td><td>${resVal('r')}</td></tr>
+                <div class="action-side-panel">
+                    <button class="btn-del-row" onclick="actions.removeRow('${id}')">×</button>
+                    <table class="res-table-v">
+                        <tr><th>左</th><td>${resVal('l')}</td></tr>
+                        <tr><th>中</th><td>${resVal('c')}</td></tr>
+                        <tr><th>右</th><td>${resVal('r')}</td></tr>
                     </table>
-                </div>
-                <div class="col-delete"><button class="btn-del-row" onclick="actions.removeRow('${id}')">×</button></div>
+                    <div class="bc-block">
+                        <div>BC:</div>
+                        <div>前:<input type="number" value="${row.bcBefore}" oninput="actions.setActionField('${id}','bcBefore',this.value)"></div>
+                        <div>後:<input type="number" value="${row.bcAfter}" oninput="actions.setActionField('${id}','bcAfter',this.value)"></div>
+                    </div>
                 </div>
             </div>
             <div class="row-lower">
@@ -1913,17 +1937,18 @@ function buildEnemyActionRowHtml(row, index) {
                         </div>
                     </div>
                 </div>
-                <div style="display:flex; gap:10px; margin-left:auto; flex-shrink:0;">
-                    <div class="col-res">
-                        <table class="res-table">
-                            <tr><th>左</th><th>中</th><th>右</th></tr>
-                            <tr><td>${resVal('l')}</td><td>${resVal('c')}</td><td>${resVal('r')}</td></tr>
-                        </table>
-                        <div style="display:flex; justify-content:center; align-items:center; gap:4px; font-size:10px; margin-top:4px;">
-                            BC: <input type="number" value="${row.bcBefore}" style="width:35px" oninput="actions.setEnemyActionField('${id}','bcBefore',this.value)"> → <input type="number" value="${row.bcAfter}" style="width:35px" oninput="actions.setEnemyActionField('${id}','bcAfter',this.value)">
-                        </div>
+                <div class="action-side-panel">
+                    <button class="btn-del-row" onclick="actions.removeRow('${id}')">×</button>
+                    <table class="res-table-v">
+                        <tr><th>左</th><td>${resVal('l')}</td></tr>
+                        <tr><th>中</th><td>${resVal('c')}</td></tr>
+                        <tr><th>右</th><td>${resVal('r')}</td></tr>
+                    </table>
+                    <div class="bc-block">
+                        <div>BC:</div>
+                        <div>前:<input type="number" value="${row.bcBefore}" oninput="actions.setEnemyActionField('${id}','bcBefore',this.value)"></div>
+                        <div>後:<input type="number" value="${row.bcAfter}" oninput="actions.setEnemyActionField('${id}','bcAfter',this.value)"></div>
                     </div>
-                    <div class="col-delete"><button class="btn-del-row" onclick="actions.removeRow('${id}')">×</button></div>
                 </div>
             </div>
             <div style="padding:3px 15px; font-size:10px; color:#666; background:#fff5f5;">
