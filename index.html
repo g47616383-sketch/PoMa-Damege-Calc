@@ -33,7 +33,7 @@
         .col-effect { width: 90px; }
         .col-targets { width: 140px; }
         .col-boost { width: 60px; }
-        .col-skills { flex: 1; min-width: 150px; }
+        .col-skills { flex: 1; min-width: 150px; max-width: 220px; }
 
         .opt-box { display: flex; align-items: center; gap: 5px; background: #f1f3f4; border-radius: 15px; padding: 4px 12px; border: 1px solid #dadce0; font-size: 10px; }
         .opt-box.permanent { background: #e8f0fe; border-color: #aecbfa; }
@@ -1732,11 +1732,11 @@ function buildActionRowHtml(row, index) {
         <div class="action-row" id="${id}">
             <div class="row-upper">
                 <div style="display:flex; flex-wrap:wrap; gap:8px; flex:1; min-width:0;">
-                <div class="col-op">
+                <div class="col-op" style="width:94px;">
                     <div style="font-size:9px; color:#999;">移動：</div>
                     <div style="display:flex; gap:2px; margin-bottom:3px;">
-                        <button class="btn-op" onclick="actions.moveRow('${id}','top')">最上</button><button class="btn-op" onclick="actions.moveRow('${id}','up')">上</button>
-                        <button class="btn-op" onclick="actions.moveRow('${id}','down')">下</button><button class="btn-op" onclick="actions.moveRow('${id}','bottom')">最下</button>
+                        <button class="btn-op-v" onclick="actions.moveRow('${id}','top')">最上</button><button class="btn-op-v" onclick="actions.moveRow('${id}','up')">上</button>
+                        <button class="btn-op-v" onclick="actions.moveRow('${id}','down')">下</button><button class="btn-op-v" onclick="actions.moveRow('${id}','bottom')">最下</button>
                     </div>
                     <button class="btn-op" style="width:100%; background:#2ecc71; color:white; border:none;" onclick="actions.copyActionRow('${id}')">コピペ</button>
                 </div>
