@@ -80,8 +80,11 @@
 <body>
 
 <div class="container">
-    <div class="top-bar">
-        <button id="reset-btn" class="btn-reset" onclick="resetToDefault()">現在の入力をリセット（初期化）</button>
+    <div class="top-bar" style="justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <div id="auth-box" style="display:flex; align-items:center; gap:8px; font-size:11px;"></div>
+        <div style="display:flex; gap:8px; margin-left:auto;">
+            <button id="reset-btn" class="btn-reset" onclick="resetToDefault()">現在の入力をリセット（初期化）</button>
+        </div>
     </div>
     <div class="section-title">敵ステータス設定</div>
     <div class="enemy-settings" id="enemy-root"></div>
@@ -115,6 +118,15 @@
     </div>
 
     <div class="total-summary" id="total-summary"></div>
+
+    <div style="display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:10px; margin-top:15px;">
+        <button id="save-btn" class="btn-reset" style="color:#2980b9; border-color:#2980b9;" onclick="saveStateToSupabase()">保存</button>
+        <div id="save-url-box" style="display:none; align-items:center; gap:8px; flex-wrap:wrap; font-size:11px; background:#e8f5e9; border:1px solid #b7e4c7; border-radius:6px; padding:6px 10px;">
+            <span style="color:#1b8a3a; font-weight:bold;">保存しました：</span>
+            <input id="save-url-input" type="text" readonly style="width:260px;" onclick="this.select()">
+            <button class="btn-op" style="background:#27ae60; color:#fff; border:none;" onclick="copySaveUrl()">URLをコピー</button>
+        </div>
+    </div>
 
 <!-- 使い方・ヒント セクション -->
     <div class="guide-section">
@@ -190,6 +202,7 @@
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ============================================================
  * 定数定義（現行コードと完全一致）
@@ -225,6 +238,238 @@ const ZONE_TYPE_RESIST_TABLE = {'-3':10/16,'-2':10/15,'-1':10/13,'0':10/10,'1':1
 /* ============================================================
  * State定義（唯一のデータソース）
  * ============================================================ */
+/* ============================================================
+ * Supabase連携（Googleログイン・保存・URL共有機能）
+ * ※ SUPABASE_URL / SUPABASE_ANON_KEY は自分のSupabaseプロジェクトの値に
+ *   書き換えてください（Supabaseダッシュボード > Project Settings > API）。
+ *   また、Supabaseダッシュボード > Authentication > Providers で
+ *   Googleプロバイダを有効化し、Authorized redirect URIにこのページのURLを
+ *   登録しておく必要があります。
+ * ============================================================ */
+const SUPABASE_URL = 'https://jgkhqvcduaxuofqsescn.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_XmJXAHXA222sguW00UAgRQ_jIEK6SYi';
+const SUPABASE_TABLE = 'pokemas_saves';
+const SAVE_LIMIT_PER_OWNER = 100; // 1アカウントあたりの保存上限件数
+
+const supabaseClient = (window.supabase && /^https?:\/\//.test(SUPABASE_URL) && SUPABASE_ANON_KEY && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY')
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
+
+if (supabaseClient) {
+    // ログイン/ログアウト状態が変わるたび（Google認証後のリダイレクト復帰時も含む）にUIを更新
+    supabaseClient.auth.onAuthStateChange(() => { refreshAuthUI(); });
+}
+
+// 共有用のユニークID（UUID）を生成
+function generateUniqueId() {
+    return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('id-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+}
+
+// 現在のURLに ?id=ID を付与した共有用URLを生成
+function buildShareUrl(id) {
+    const url = new URL(window.location.href);
+    url.hash = '';
+    url.searchParams.set('id', id);
+    return url.toString();
+}
+
+// ---- ログインUI ----
+async function refreshAuthUI() {
+    const box = document.getElementById('auth-box');
+    if (!box) return;
+
+    if (!supabaseClient) {
+        box.innerHTML = '<span style="color:#999;">Supabase未設定</span>';
+        return;
+    }
+
+    const { data } = await supabaseClient.auth.getUser();
+    const user = data ? data.user : null;
+
+    if (user) {
+        const label = (user.user_metadata && user.user_metadata.full_name) || user.email || user.id;
+        box.innerHTML = `<span style="color:#27ae60;">ログイン中: ${escapeAttr(label)}</span>
+            <button class="btn-op" onclick="logoutUser()">ログアウト</button>`;
+    } else {
+        box.innerHTML = `<button class="btn-op" style="background:#4285F4; color:#fff; border:none;" onclick="loginWithGoogle()">Googleでログイン</button>`;
+    }
+}
+
+async function loginWithGoogle() {
+    if (!supabaseClient) {
+        alert('Supabaseの接続設定（SUPABASE_URL / SUPABASE_ANON_KEY）がまだ設定されていません。');
+        return;
+    }
+    const { error } = await supabaseClient.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.href }
+    });
+    if (error) alert('ログインに失敗しました: ' + error.message);
+}
+
+async function logoutUser() {
+    if (!supabaseClient) return;
+    await supabaseClient.auth.signOut();
+}
+
+// ---- 保存（新規保存／上書き保存／別名コピー保存を自動判定） ----
+async function saveStateToSupabase() {
+    if (!supabaseClient) {
+        alert('Supabaseの接続設定（SUPABASE_URL / SUPABASE_ANON_KEY）がまだ設定されていません。HTML内のスクリプトを編集してください。');
+        return;
+    }
+
+    const btn = document.getElementById('save-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '保存中…'; }
+
+    try {
+        // 1. ログインチェック
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        if (!user) {
+            alert('状態を保存するにはログインが必要です。');
+            return;
+        }
+
+        const currentAppState = {
+            global: state.global,
+            enemies: state.enemies,
+            buddyCards: state.buddyCards,
+            masterOptions: state.masterOptions,
+            actionList: state.actionList
+        };
+
+        // 2. URLに ?id=ID が無い場合：完全な新規保存
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlId = urlParams.get('id');
+        if (!urlId) {
+            await performInsert(generateUniqueId(), currentAppState, user.id);
+            return;
+        }
+
+        // 3. URLにIDがある場合：上書き・別名保存の判定のため既存データのownerを確認
+        const { data: existingData, error: fetchError } = await supabaseClient
+            .from(SUPABASE_TABLE)
+            .select('owner')
+            .eq('id', urlId)
+            .single();
+
+        if (fetchError || !existingData) {
+            // URLのIDが存在しない／削除済みの場合も新規扱いにする
+            await performInsert(generateUniqueId(), currentAppState, user.id);
+            return;
+        }
+
+        // 4. 所有者チェック
+        if (existingData.owner === user.id) {
+            // uidが一致 → 上書き保存
+            const { error } = await supabaseClient
+                .from(SUPABASE_TABLE)
+                .update({ state: currentAppState })
+                .eq('id', urlId);
+            if (error) {
+                alert('上書き保存に失敗しました: ' + error.message);
+            } else {
+                showSaveUrl(buildShareUrl(urlId));
+                alert('データを上書き保存しました！');
+            }
+        } else {
+            // uidが異なる → 別IDで自分のデータとして新規保存（コピー保存）
+            alert('このURLは他のユーザーが保存したデータです。あなた自身のデータとして別のURLで保存します。');
+            await performInsert(generateUniqueId(), currentAppState, user.id);
+        }
+    } catch (e) {
+        console.error(e);
+        alert('保存処理でエラーが発生しました: ' + (e.message || e));
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '保存'; }
+    }
+}
+
+// 新規保存（インサート）の共通処理。1アカウントあたりSAVE_LIMIT_PER_OWNER件に達している場合は
+// 保存せずにアラートのみ表示する（削除はユーザープロフィールページ側で行う想定）。
+// ownerはテーブル側のデフォルト値(auth.uid())で自動的に現在ログイン中のユーザーになる。
+async function performInsert(newId, stateData, ownerId) {
+    if (ownerId) {
+        const { count, error: countErr } = await supabaseClient
+            .from(SUPABASE_TABLE)
+            .select('id', { count: 'exact', head: true })
+            .eq('owner', ownerId);
+
+        if (!countErr && count !== null && count >= SAVE_LIMIT_PER_OWNER) {
+            alert(`保存は${SAVE_LIMIT_PER_OWNER}件までです。不要なデータを削除してから保存してください。`);
+            return;
+        }
+    }
+
+    const { error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .insert({ id: newId, state: stateData });
+
+    if (error) {
+        alert('新規保存に失敗しました: ' + error.message);
+        return;
+    }
+
+    const newUrl = buildShareUrl(newId);
+    window.history.pushState({}, '', newUrl);
+    showSaveUrl(newUrl);
+    alert('新しいデータとして保存しました！\n共有用URL: ' + newUrl);
+}
+
+function showSaveUrl(url) {
+    const box = document.getElementById('save-url-box');
+    const input = document.getElementById('save-url-input');
+    if (box && input) {
+        input.value = url;
+        box.style.display = 'flex';
+    }
+}
+
+function copySaveUrl() {
+    const input = document.getElementById('save-url-input');
+    if (!input) return;
+    input.select();
+    navigator.clipboard && navigator.clipboard.writeText(input.value).catch(() => {});
+}
+
+// URLの ?id=ID パラメータがあれば、Supabaseから該当stateを取得して復元する（閲覧は誰でも可能）
+async function tryLoadFromShareUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const saveId = params.get('id');
+    if (!saveId) return false;
+
+    if (!supabaseClient) {
+        alert('Supabaseの接続設定が未完了のため、URLからの復元ができません。');
+        return false;
+    }
+
+    try {
+        const { data, error } = await supabaseClient
+            .from(SUPABASE_TABLE)
+            .select('state')
+            .eq('id', saveId)
+            .single();
+
+        if (error || !data) {
+            alert('指定された保存データが見つかりませんでした（ID: ' + saveId + '）。');
+            return false;
+        }
+
+        const saved = data.state || {};
+        state.global = saved.global || state.global;
+        state.enemies = saved.enemies || state.enemies;
+        state.buddyCards = saved.buddyCards || state.buddyCards;
+        state.masterOptions = saved.masterOptions || [];
+        state.actionList = saved.actionList || [];
+        migrateActionList(state.actionList);
+        return true;
+    } catch (e) {
+        console.error(e);
+        alert('保存データの読み込みに失敗しました: ' + (e.message || e));
+        return false;
+    }
+}
+
 let state = null; // init()で生成
 
 function createInitialEnemy(maxHp = null, resistDefaults = null) {
@@ -322,7 +567,7 @@ function createInitialEnemyActionRow() {
     };
 }
 
-function init() {
+async function init() {
     state = {
         global: {
             cheerUp: false
@@ -344,6 +589,14 @@ function init() {
         actionList: [],
         derived: null // 毎回 recalc() で再生成
     };
+
+    // ---- URL共有経由の復元（優先度0：最優先） ----
+    // ?save=ID がURLに付いている場合、Supabaseから該当stateを取得して復元する
+    const loadedFromUrl = await tryLoadFromShareUrl();
+    if (loadedFromUrl) {
+        render();
+        return;
+    }
 
     // ---- 自動復元（優先度1） ----
     // localStorageに保存済みデータがあれば、それを復元してデフォルト初期化をスキップする
@@ -1673,7 +1926,7 @@ function applyEaResistDefaultsToRow(row, side) {
     row.zone.res = d.zone;
 }
 
-window.onload = init;
+window.onload = () => { refreshAuthUI(); init(); };
 
 /* ============================================================
  * buildActionRowHtml（味方行動行のHTML生成）
