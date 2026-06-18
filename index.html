@@ -291,7 +291,10 @@ async function refreshAuthUI() {
         box.innerHTML = `<span style="color:#27ae60;">ログイン中: ${escapeAttr(label)}</span>
             <button class="btn-op" onclick="logoutUser()">ログアウト</button>`;
     } else {
-        box.innerHTML = `<button class="btn-op" style="background:#4285F4; color:#fff; border:none;" onclick="loginWithGoogle()">Googleでログイン</button>`;
+        box.innerHTML = `<div style="display:flex; flex-direction:column; gap:4px;">
+            <button class="btn-op" style="background:#4285F4; color:#fff; border:none;" onclick="loginWithGoogle()">Googleでログイン</button>
+            <button class="btn-op" style="background:#5865F2; color:#fff; border:none;" onclick="loginWithDiscord()">Discordでログイン</button>
+        </div>`;
     }
 }
 
@@ -302,6 +305,18 @@ async function loginWithGoogle() {
     }
     const { error } = await supabaseClient.auth.signInWithOAuth({
         provider: 'google',
+        options: { redirectTo: window.location.href }
+    });
+    if (error) alert('ログインに失敗しました: ' + error.message);
+}
+
+async function loginWithDiscord() {
+    if (!supabaseClient) {
+        alert('Supabaseの接続設定（SUPABASE_URL / SUPABASE_ANON_KEY）がまだ設定されていません。');
+        return;
+    }
+    const { error } = await supabaseClient.auth.signInWithOAuth({
+        provider: 'discord',
         options: { redirectTo: window.location.href }
     });
     if (error) alert('ログインに失敗しました: ' + error.message);
