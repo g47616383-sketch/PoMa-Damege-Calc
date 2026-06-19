@@ -238,8 +238,8 @@ const ZONE_TYPE_RESIST_TABLE = {'-3':10/16,'-2':10/15,'-1':10/13,'0':10/10,'1':1
 /* ============================================================
  * State定義（唯一のデータソース）
  * ============================================================ */
+
 /* ============================================================
- * Supabase連携（Googleログイン・保存・URL共有機能）
  * ※ SUPABASE_URL / SUPABASE_ANON_KEY は自分のSupabaseプロジェクトの値に
  *   書き換えてください（Supabaseダッシュボード > Project Settings > API）。
  *   また、Supabaseダッシュボード > Authentication > Providers で
@@ -328,6 +328,278 @@ async function logoutUser() {
 }
 
 // ---- 保存（新規保存／上書き保存／別名コピー保存を自動判定） ----
+/* ============================================================
+ * State 圧縮・展開（Supabase 保存用）
+ * compressState(st)  → 短縮キー＋bool→1/0 の圧縮オブジェクト
+ * decompressState(c) → 通常の state オブジェクトへ復元
+ * ============================================================ */
+
+// ---- 変換マップ（正方向 / 逆方向） ----
+const _C = {
+    optType:  { WTZ:'w', Circle:'ci', Resist:'re', Break:'br', SuperEff:'se',
+                ReduceStat:'rs', NextGuard:'ng', ReduceSkill:'rsk', Burn:'bu', Other:'ot' },
+    moveCat:  { physical:'ph', special:'sp' },
+    moveType: { normal:'no', b:'b', bd:'bd' },
+    myStat:   { atk:'a', spatk:'sa' },
+    enStat:   { def:'d', spdef:'sd' },
+    circleT:  { '物理':'ph', '特殊':'sp', '防御':'de' },
+    rowType:  { action:'a', enemy:'e' },
+    masterT:  { MP:'m', MEX:'x', Myth:'my', Charisma:'ch' },
+    ptype:    { poison:'p', badpoison:'bp' },
+    eaCat:    { normal:'no', t:'t', b:'b', bd:'bd' },
+};
+// 各マップの逆引き版を自動生成
+const _D = {};
+for (const k of Object.keys(_C)) {
+    _D[k] = Object.fromEntries(Object.entries(_C[k]).map(([a,b])=>[b,a]));
+}
+
+const _b  = v => v ? 1 : 0;          // boolean → 1/0
+const _B  = v => v === 1 || v === true; // 1/0 → boolean
+const _dv = (v, d) => v !== undefined && v !== null ? v : d; // デフォルト付き取得
+
+// ---- dynamicOption 圧縮 ----
+function _compOpt(op) {
+    const t = _C.optType[op.type] ?? op.type;
+    const o = { id: op.id, t };
+    switch (op.type) {
+        case 'WTZ':
+            o.v = op.value; break;
+        case 'Circle':
+            o.l = op.loc; o.n = op.n;
+            o.ct = _C.circleT[op.circleType] ?? op.circleType; break;
+        case 'Resist':
+        case 'Other':
+            o.l = op.l; o.c = op.c; o.r = op.r; break;
+        case 'Break':
+        case 'NextGuard':
+            o.l = _b(op.l); o.c = _b(op.c); o.r = _b(op.r); break;
+        case 'ReduceSkill':
+            o.l = _b(op.l); o.c = _b(op.c); o.r = _b(op.r); o.v = op.value; break;
+        case 'SuperEff':
+        case 'ReduceStat':
+        case 'Burn':
+            o.a = _b(op.active); break;
+    }
+    return o;
+}
+
+// ---- dynamicOption 展開 ----
+function _decompOpt(o) {
+    const type = _D.optType[o.t] ?? o.t;
+    const op = { id: o.id, type };
+    switch (type) {
+        case 'WTZ':
+            op.value = o.v; break;
+        case 'Circle':
+            op.loc = o.l; op.n = o.n;
+            op.circleType = _D.circleT[o.ct] ?? o.ct; break;
+        case 'Resist':
+        case 'Other':
+            op.l = o.l; op.c = o.c; op.r = o.r; break;
+        case 'Break':
+        case 'NextGuard':
+            op.l = _B(o.l); op.c = _B(o.c); op.r = _B(o.r); break;
+        case 'ReduceSkill':
+            op.l = _B(o.l); op.c = _B(o.c); op.r = _B(o.r); op.value = o.v; break;
+        case 'SuperEff':
+        case 'ReduceStat':
+        case 'Burn':
+            op.active = _B(o.a); break;
+    }
+    return op;
+}
+
+// ---- 圧縮本体 ----
+function compressState(st) {
+    // global
+    const gl = { cu: _b(st.global.cheerUp) };
+
+    // enemies
+    const en = {};
+    SIDE_KEYS.forEach(s => {
+        const e = st.enemies[s], rx = e.resistDefaults;
+        en[s] = {
+            df: e.def, sd: e.spdef, rd: e.resDef, rsd: e.resSpdef, mh: e.maxHp,
+            rx: { bi: rx.bind, po: rx.poison, bu: rx.burn, zo: rx.zone }
+        };
+    });
+
+    // buddyCards
+    const bc = st.buddyCards.map(card => ({
+        ci: card.cardId,
+        fm: card.forms.map(f => ({
+            id: f.formId, n: f.name,
+            ak: { v: f.atk.value,   b: f.atk.bsb,   t: f.atk.team,   e: f.atk.equip },
+            sa: { v: f.spatk.value, b: f.spatk.bsb, t: f.spatk.team, e: f.spatk.equip },
+            skp: f.skillMultiP, skb: f.skillMultiB,
+            ei: { bi: f.enemyDmgIncrease.bind, po: f.enemyDmgIncrease.poison, bu: f.enemyDmgIncrease.burn }
+        }))
+    }));
+
+    // masterOptions
+    const mo = st.masterOptions.map(m => {
+        const o = { id: m.id, t: _C.masterT[m.type] ?? m.type, rg: m.region, n: m.n };
+        if (m.kind) o.k = m.kind;
+        return o;
+    });
+
+    // actionList
+    const al = st.actionList.map(item => {
+        const rt = _C.rowType[item.rowType] ?? item.rowType;
+        if (item.rowType === 'action') {
+            const row = item.data;
+            const d = {
+                id: row.id,
+                bn: row.buddyName,
+                mc: _C.moveCat[row.moveCat]  ?? row.moveCat,
+                mt: _C.moveType[row.moveType] ?? row.moveType,
+                mst: _C.myStat[row.myStatType] ?? row.myStatType,
+                mr: row.myRank,
+                est: _C.enStat[row.enStatType] ?? row.enStatType,
+                er: { l: row.enRank.l, c: row.enRank.c, r: row.enRank.r },
+                bp: row.bp, bb: row.bsbBp, em: row.effMul,
+                tg: { l: _b(row.targets.l), c: _b(row.targets.c), r: _b(row.targets.r) },
+                wk: { l: _b(row.weak.l), c: _b(row.weak.c), r: _b(row.weak.r) },
+                bo: row.boost,
+                sk: row.skills.map(sk => ({ id: sk.id, n: sk.name, v: sk.value })),
+                cr: { l: _b(row.crit.l), c: _b(row.crit.c), r: _b(row.crit.r) },
+                vo: row.volt, bfb: row.bcBefore, bfa: row.bcAfter,
+                op: row.dynamicOptions.map(_compOpt),
+            };
+            if (row.noSplit)   d.ns = 1;
+            if (row.comment !== null && row.comment !== undefined) d.cm = row.comment;
+            if (row.formulaOpen) d.fo = 1;
+            if (row.moveName)  d.mn = row.moveName;
+            return { rt, d };
+        } else {
+            const row = item.data;
+            const d = {
+                id: row.id,
+                tg: row.target,
+                ct: _C.eaCat[row.category] ?? row.category,
+                bi: { a: _b(row.bind.active),    r: row.bind.res,   i: row.bind.inc },
+                po: { a: _b(row.poison.active),  pt: _C.ptype[row.poison.ptype] ?? row.poison.ptype,
+                      r: row.poison.res, i: row.poison.inc },
+                bu: { a: _b(row.burn.active),    r: row.burn.res,   i: row.burn.inc },
+                we: { a: _b(row.weather.active) },
+                zo: { a: _b(row.zone.active), r: row.zone.res,
+                      wk: _b(row.zone.weak), tr: row.zone.typeResist },
+                hl: { l: row.heal.l, c: row.heal.c, r: row.heal.r,
+                      bn: { l: _b(row.heal.bonus.l), c: _b(row.heal.bonus.c), r: _b(row.heal.bonus.r) } },
+                bfb: row.bcBefore, bfa: row.bcAfter,
+            };
+            if (row.moveName)    d.mn  = row.moveName;
+            if (row.dmgTypeOpen) d.dto = 1;
+            if (row.healOpen)    d.ho  = 1;
+            if (row.formulaOpen) d.fo  = 1;
+            return { rt, d };
+        }
+    });
+
+    return { gl, en, bc, mo, al };
+}
+
+// ---- 展開本体 ----
+function decompressState(c) {
+    // global
+    const global = { cheerUp: _B(c.gl?.cu) };
+
+    // enemies
+    const enemies = {};
+    SIDE_KEYS.forEach(s => {
+        const e = c.en?.[s] ?? {}, rx = e.rx ?? {};
+        enemies[s] = {
+            def: _dv(e.df, 166), spdef: _dv(e.sd, 166),
+            resDef: _dv(e.rd, 0), resSpdef: _dv(e.rsd, 0),
+            maxHp: e.mh !== undefined ? e.mh : null,
+            resistDefaults: { bind: _dv(rx.bi,0), poison: _dv(rx.po,0), burn: _dv(rx.bu,0), zone: _dv(rx.zo,0) }
+        };
+    });
+
+    // buddyCards
+    const buddyCards = (c.bc ?? []).map((card, ci) => ({
+        cardId: card.ci ?? ci + 1,
+        forms: (card.fm ?? []).map(f => ({
+            formId: f.id, name: f.n ?? '',
+            atk:   { value: _dv(f.ak?.v,336), bsb: _dv(f.ak?.b,0), team: _dv(f.ak?.t,0), equip: _dv(f.ak?.e,0) },
+            spatk: { value: _dv(f.sa?.v,336), bsb: _dv(f.sa?.b,0), team: _dv(f.sa?.t,0), equip: _dv(f.sa?.e,0) },
+            skillMultiP: _dv(f.skp, 0), skillMultiB: _dv(f.skb, 0),
+            enemyDmgIncrease: { bind: _dv(f.ei?.bi,0), poison: _dv(f.ei?.po,0), burn: _dv(f.ei?.bu,0) }
+        }))
+    }));
+
+    // masterOptions
+    const masterOptions = (c.mo ?? []).map(m => ({
+        id: m.id,
+        type: _D.masterT[m.t] ?? m.t,
+        region: m.rg, kind: m.k ?? null, n: m.n
+    }));
+
+    // actionList
+    const actionList = (c.al ?? []).map(item => {
+        const rowType = _D.rowType[item.rt] ?? item.rt;
+        if (rowType === 'action') {
+            const d = item.d;
+            return {
+                rowType,
+                data: {
+                    id: d.id,
+                    buddyName: d.bn ?? '',
+                    moveName:  d.mn ?? '',
+                    moveCat:   _D.moveCat[d.mc]   ?? d.mc  ?? 'physical',
+                    moveType:  _D.moveType[d.mt]  ?? d.mt  ?? 'normal',
+                    myStatType: _D.myStat[d.mst]  ?? d.mst ?? 'atk',
+                    myRank:    _dv(d.mr, 0),
+                    enStatType: _D.enStat[d.est]  ?? d.est ?? 'def',
+                    enRank:  { l: _dv(d.er?.l,0), c: _dv(d.er?.c,0), r: _dv(d.er?.r,0) },
+                    bp: _dv(d.bp,200), bsbBp: _dv(d.bb,0), effMul: _dv(d.em,100),
+                    targets: { l: _B(d.tg?.l), c: _B(d.tg?.c), r: _B(d.tg?.r) },
+                    noSplit: _B(d.ns),
+                    weak: { l: _B(d.wk?.l), c: _B(d.wk?.c), r: _B(d.wk?.r) },
+                    boost: _dv(d.bo, 0),
+                    skills: (d.sk ?? []).map(sk => ({ id: sk.id, name: sk.n ?? '', value: _dv(sk.v,0) })),
+                    crit: {
+                        l: d.cr?.l !== undefined ? _B(d.cr.l) : true,
+                        c: d.cr?.c !== undefined ? _B(d.cr.c) : true,
+                        r: d.cr?.r !== undefined ? _B(d.cr.r) : true,
+                    },
+                    volt: _dv(d.vo, 0),
+                    bcBefore: _dv(d.bfb, 9), bcAfter: _dv(d.bfa, 8),
+                    dynamicOptions: (d.op ?? []).map(_decompOpt),
+                    comment: d.cm !== undefined ? d.cm : null,
+                    formulaOpen: _B(d.fo)
+                }
+            };
+        } else {
+            const d = item.d;
+            return {
+                rowType,
+                data: {
+                    id: d.id,
+                    target: d.tg ?? 'c',
+                    moveName: d.mn ?? '',
+                    category: _D.eaCat[d.ct] ?? d.ct ?? 'normal',
+                    bind:    { active: _B(d.bi?.a), res: _dv(d.bi?.r,0), inc: _dv(d.bi?.i,0) },
+                    poison:  { active: _B(d.po?.a), ptype: _D.ptype[d.po?.pt] ?? d.po?.pt ?? 'poison',
+                               res: _dv(d.po?.r,0), inc: _dv(d.po?.i,0) },
+                    burn:    { active: _B(d.bu?.a), res: _dv(d.bu?.r,0), inc: _dv(d.bu?.i,0) },
+                    weather: { active: _B(d.we?.a) },
+                    zone:    { active: _B(d.zo?.a), res: _dv(d.zo?.r,0), weak: _B(d.zo?.wk), typeResist: _dv(d.zo?.tr,0) },
+                    heal: {
+                        l: _dv(d.hl?.l,0), c: _dv(d.hl?.c,0), r: _dv(d.hl?.r,0),
+                        bonus: { l: _B(d.hl?.bn?.l), c: _B(d.hl?.bn?.c), r: _B(d.hl?.bn?.r) }
+                    },
+                    bcBefore: _dv(d.bfb, 6), bcAfter: _dv(d.bfa, 5),
+                    dmgTypeOpen: _B(d.dto), healOpen: _B(d.ho), formulaOpen: _B(d.fo)
+                }
+            };
+        }
+    });
+
+    return { global, enemies, buddyCards, masterOptions, actionList };
+}
+
 async function saveStateToSupabase() {
     if (!supabaseClient) {
         alert('Supabaseの接続設定（SUPABASE_URL / SUPABASE_ANON_KEY）がまだ設定されていません。HTML内のスクリプトを編集してください。');
@@ -345,13 +617,7 @@ async function saveStateToSupabase() {
             return;
         }
 
-        const currentAppState = {
-            global: state.global,
-            enemies: state.enemies,
-            buddyCards: state.buddyCards,
-            masterOptions: state.masterOptions,
-            actionList: state.actionList
-        };
+        const currentAppState = compressState(state);
 
         // 2. URLに ?id=ID が無い場合：完全な新規保存
         const urlParams = new URLSearchParams(window.location.search);
@@ -471,12 +737,15 @@ async function tryLoadFromShareUrl() {
         }
 
         const saved = data.state || {};
-        state.global = saved.global || state.global;
-        state.enemies = saved.enemies || state.enemies;
-        state.buddyCards = saved.buddyCards || state.buddyCards;
-        state.masterOptions = saved.masterOptions || [];
-        state.actionList = saved.actionList || [];
+        // 圧縮フォーマット（gl,en,bc... キーが存在）か旧フォーマットかを自動判別
+        const restored = saved.gl !== undefined ? decompressState(saved) : saved;
+        state.global       = restored.global       ?? state.global;
+        state.enemies      = restored.enemies      ?? state.enemies;
+        state.buddyCards   = restored.buddyCards   ?? state.buddyCards;
+        state.masterOptions = restored.masterOptions ?? [];
+        state.actionList   = restored.actionList   ?? [];
         migrateActionList(state.actionList);
+        syncCounters();
         return true;
     } catch (e) {
         console.error(e);
@@ -501,7 +770,7 @@ function createInitialEnemy(maxHp = null, resistDefaults = null) {
 function createInitialBuddyForm(name, vals = null) {
     const v = vals || { atkV:336, atkB:0, atkT:0, atkE:0, spV:336, spB:0, spT:0, spE:0, skP:0, skB:0, bindInc:0, poisonInc:0, burnInc:0 };
     return {
-        formId: 'form-' + Date.now() + '-' + Math.random(),
+        formId: nid('fm'),
         name: name,
         atk: { value: Number(v.atkV), bsb: Number(v.atkB), team: Number(v.atkT), equip: Number(v.atkE) },
         spatk: { value: Number(v.spV), bsb: Number(v.spB), team: Number(v.spT), equip: Number(v.spE) },
@@ -513,7 +782,7 @@ function createInitialBuddyForm(name, vals = null) {
 
 function createInitialActionRow() {
     return {
-        id: 'row-' + Date.now() + '-' + Math.random(),
+        id: nid('r'),
 
         buddyName: 'バディーズ1', // .buddy-select の選択値（デフォルトは本体カード1の本体名）
         moveName: '',
@@ -555,7 +824,7 @@ function createInitialActionRow() {
 
 function createInitialEnemyActionRow() {
     return {
-        id: 'earow-' + Date.now() + '-' + Math.random(),
+        id: nid('ea'),
         target: 'c',
         moveName: '',
         category: 'normal', // 'normal' | 't' | 'b' | 'bd'
@@ -657,19 +926,13 @@ async function init() {
 /* ============================================================
  * 自動保存・自動復元（localStorage）
  * ============================================================ */
-const STORAGE_KEY = 'pokemas_calc_state_v5';
+// v6: 圧縮フォーマット導入に伴いキーを更新（旧v5データとの混在を防ぐ）
+const STORAGE_KEY = 'pokemas_calc_state_v6';
 
-// 現在のstateを保存する（derivedは再生成可能なため除外）
+// 現在のstateを圧縮して保存する（derivedは再生成可能なため除外）
 function saveToLocalStorage() {
     try {
-        const toSave = {
-            global: state.global,
-            enemies: state.enemies,
-            buddyCards: state.buddyCards,
-            masterOptions: state.masterOptions,
-            actionList: state.actionList
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(compressState(state)));
     } catch (e) {
         // 保存失敗時は静かに無視（容量超過やプライベートモード等）
         console.warn('自動保存に失敗しました:', e);
@@ -682,17 +945,28 @@ function loadFromLocalStorage() {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return false;
         const saved = JSON.parse(raw);
-        if (!saved || !saved.actionList) return false;
+        if (!saved) return false;
 
-        state.global = saved.global || { cheerUp: false };
-        state.enemies = saved.enemies || state.enemies;
-        state.buddyCards = saved.buddyCards || state.buddyCards;
-        state.masterOptions = saved.masterOptions || [];
-        state.actionList = saved.actionList || [];
+        let restored;
+        if (saved.gl !== undefined) {
+            // 圧縮フォーマット（v6以降）
+            if (!saved.al) return false;
+            restored = decompressState(saved);
+        } else {
+            // 旧フォーマット（v5以前）の後方互換
+            if (!saved.actionList) return false;
+            restored = saved;
+        }
 
-        // マイグレーション：古い形式の保存データに不足しているフィールドを補完
+        state.global        = restored.global        ?? { cheerUp: false };
+        state.enemies       = restored.enemies       ?? state.enemies;
+        state.buddyCards    = restored.buddyCards    ?? state.buddyCards;
+        state.masterOptions = restored.masterOptions ?? [];
+        state.actionList    = restored.actionList    ?? [];
+
+        // 旧フォーマット由来データの場合のみマイグレーションが必要
         migrateActionList(state.actionList);
-
+        syncCounters();
         return true;
     } catch (e) {
         console.warn('自動復元に失敗しました:', e);
@@ -748,6 +1022,7 @@ function resetToDefault() {
 function doReset() {
     try {
         localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem('pokemas_calc_state_v5'); // 旧キーも念のため削除
     } catch (e) {}
     init();
 }
@@ -1403,14 +1678,40 @@ function findActionListItem(id) {
     return { item: state.actionList[index], row: state.actionList[index].data, index };
 }
 
-// 新しいID生成（現行の Date.now()+Math.random() 形式を維持）
-function genId(prefix) {
-    return prefix + '-' + Date.now() + '-' + Math.random();
+
+// ============================================================
+// 連番IDシステム（短縮ID）
+// 各プレフィックスごとに独立したカウンタで r1, ea1, op1 ... を生成する。
+// ============================================================
+const _cnt = { r:0, ea:0, op:0, sk:0, fm:0, mo:0 };
+
+function nid(p) { return p + (++_cnt[p]); }
+
+// ロード後に既存IDからカウンタ最大値を更新してIDの衝突を防ぐ
+function syncCounters() {
+    const parse = (id, pre) => {
+        const n = parseInt(String(id ?? '').slice(pre.length));
+        return isNaN(n) ? 0 : n;
+    };
+    state.actionList.forEach(item => {
+        const row = item.data;
+        if (item.rowType === 'action') {
+            _cnt.r  = Math.max(_cnt.r,  parse(row.id, 'r'));
+            (row.dynamicOptions || []).forEach(op => { _cnt.op = Math.max(_cnt.op, parse(op.id, 'op')); });
+            (row.skills        || []).forEach(sk => { _cnt.sk = Math.max(_cnt.sk, parse(sk.id, 'sk')); });
+        } else if (item.rowType === 'enemy') {
+            _cnt.ea = Math.max(_cnt.ea, parse(row.id, 'ea'));
+        }
+    });
+    state.buddyCards.forEach(card => {
+        card.forms.forEach(form => { _cnt.fm = Math.max(_cnt.fm, parse(form.formId, 'fm')); });
+    });
+    state.masterOptions.forEach(mo => { _cnt.mo = Math.max(_cnt.mo, parse(mo.id, 'mo')); });
 }
 
 // オプションタイプごとの初期値生成（addOption相当の初期値部分）
 function createOptionDefault(type) {
-    const id = genId('opt');
+    const id = nid('op');
     switch (type) {
         case 'WTZ':
             return { id, type, value: 1.5 };
@@ -1599,7 +1900,7 @@ const actions = {
         else region = TYPES[0]; // Charisma
 
         state.masterOptions.push({
-            id: genId('mopt'),
+            id: nid('mo'),
             type, region, kind, n: 1
         });
         render();
@@ -1700,10 +2001,10 @@ const actions = {
         const original = found.row;
 
         const copy = JSON.parse(JSON.stringify(original));
-        copy.id = genId('row');
+        copy.id = nid('r');
         // dynamicOptionsとskillsの各要素にも新しいidを再採番
-        copy.dynamicOptions.forEach(box => { box.id = genId('opt'); });
-        copy.skills.forEach(sk => { sk.id = genId('skill'); });
+        copy.dynamicOptions.forEach(box => { box.id = nid('op'); });
+        copy.skills.forEach(sk => { sk.id = nid('sk'); });
         // formulaOpenは複製時リセット（現行コードもtoggle状態は個別管理）
         copy.formulaOpen = false;
 
@@ -1717,7 +2018,7 @@ const actions = {
         const original = found.row;
 
         const copy = JSON.parse(JSON.stringify(original));
-        copy.id = genId('earow');
+        copy.id = nid('ea');
         copy.formulaOpen = false;
 
         state.actionList.push({ rowType: 'enemy', data: copy });
@@ -1783,7 +2084,7 @@ const actions = {
     // ---- スキル（上昇スキル）----
     addSkill(id) {
         const { row } = findActionListItem(id);
-        row.skills.push({ id: genId('skill'), name: '', value: 0 });
+        row.skills.push({ id: nid('sk'), name: '', value: 0 });
         render();
     },
 
